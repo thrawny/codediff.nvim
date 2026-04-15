@@ -4,6 +4,13 @@ local M = {}
 local lifecycle = require("codediff.ui.lifecycle")
 local config = require("codediff.config")
 
+local function echo_hunk_message(chunks)
+  if not config.options.diff.show_hunk_navigation_message then
+    return
+  end
+  vim.api.nvim_echo(chunks, false, {})
+end
+
 -- Navigate to next hunk in the current diff view
 -- Returns true if navigation succeeded, false otherwise
 function M.next_hunk()
@@ -53,7 +60,7 @@ function M.next_hunk()
     if target_line > current_line then
       pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
       vim.cmd("normal! zz")
-      vim.api.nvim_echo({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } }, false, {})
+      echo_hunk_message({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } })
       return true
     end
   end
@@ -64,10 +71,10 @@ function M.next_hunk()
     local target_line = is_original and first_hunk.original.start_line or first_hunk.modified.start_line
     pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
     vim.cmd("normal! zz")
-    vim.api.nvim_echo({ { string.format("Hunk 1 of %d", #diff_result.changes), "None" } }, false, {})
+    echo_hunk_message({ { string.format("Hunk 1 of %d", #diff_result.changes), "None" } })
     return true
   else
-    vim.api.nvim_echo({ { string.format("Last hunk (%d of %d)", #diff_result.changes, #diff_result.changes), "WarningMsg" } }, false, {})
+    echo_hunk_message({ { string.format("Last hunk (%d of %d)", #diff_result.changes, #diff_result.changes), "WarningMsg" } })
     return false
   end
 end
@@ -122,7 +129,7 @@ function M.prev_hunk()
     if target_line < current_line then
       pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
       vim.cmd("normal! zz")
-      vim.api.nvim_echo({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } }, false, {})
+      echo_hunk_message({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } })
       return true
     end
   end
@@ -133,10 +140,10 @@ function M.prev_hunk()
     local target_line = is_original and last_hunk.original.start_line or last_hunk.modified.start_line
     pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
     vim.cmd("normal! zz")
-    vim.api.nvim_echo({ { string.format("Hunk %d of %d", #diff_result.changes, #diff_result.changes), "None" } }, false, {})
+    echo_hunk_message({ { string.format("Hunk %d of %d", #diff_result.changes, #diff_result.changes), "None" } })
     return true
   else
-    vim.api.nvim_echo({ { string.format("First hunk (1 of %d)", #diff_result.changes), "WarningMsg" } }, false, {})
+    echo_hunk_message({ { string.format("First hunk (1 of %d)", #diff_result.changes), "WarningMsg" } })
     return false
   end
 end
