@@ -93,6 +93,10 @@ function M.create_session(
     layout = "side-by-side",
     suspended = false,
     stored_diff_result = lines_diff,
+    render_seq = 0,
+    rendered_seq = 0,
+    render_pending = false,
+    pending_navigation = nil,
     changedtick = {
       original = vim.api.nvim_buf_get_changedtick(original_bufnr),
       modified = vim.api.nvim_buf_get_changedtick(modified_bufnr),

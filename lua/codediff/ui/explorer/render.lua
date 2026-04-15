@@ -215,6 +215,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
         return
       end
 
+      local render_seq = lifecycle.begin_render(tabpage)
       vim.schedule(function()
         ---@type SessionConfig
         local session_config = {
@@ -224,6 +225,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
           modified_path = modified_path,
           original_revision = nil,
           modified_revision = nil,
+          render_seq = render_seq,
         }
         view.update(tabpage, session_config, jump)
       end)
@@ -234,14 +236,16 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
 
     -- Handle untracked files: show file without diff
     if file_data.status == "??" then
+      local render_seq = lifecycle.begin_render(tabpage)
       vim.schedule(function()
         local sess = lifecycle.get_session(tabpage)
         if sess and sess.layout == "inline" then
           require("codediff.ui.view.inline_view").show_single_file(tabpage, abs_path, {
             side = "modified",
+            render_seq = render_seq,
           })
         else
-          require("codediff.ui.view.side_by_side").show_untracked_file(tabpage, abs_path)
+          require("codediff.ui.view.side_by_side").show_untracked_file(tabpage, abs_path, render_seq)
         end
       end)
       return
@@ -249,6 +253,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
 
     -- Handle added files: only one side has the file
     if file_data.status == "A" then
+      local render_seq = lifecycle.begin_render(tabpage)
       vim.schedule(function()
         local sess = lifecycle.get_session(tabpage)
         local is_inline = sess and sess.layout == "inline"
@@ -260,9 +265,10 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
               git_root = git_root,
               rel_path = file_path,
               side = "modified",
+              render_seq = render_seq,
             })
           else
-            require("codediff.ui.view.side_by_side").show_added_virtual_file(tabpage, git_root, file_path, target_revision)
+            require("codediff.ui.view.side_by_side").show_added_virtual_file(tabpage, git_root, file_path, target_revision, render_seq)
           end
         elseif group == "staged" then
           if is_inline then
@@ -271,17 +277,19 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
               git_root = git_root,
               rel_path = file_path,
               side = "modified",
+              render_seq = render_seq,
             })
           else
-            require("codediff.ui.view.side_by_side").show_added_virtual_file(tabpage, git_root, file_path, ":0")
+            require("codediff.ui.view.side_by_side").show_added_virtual_file(tabpage, git_root, file_path, ":0", render_seq)
           end
         else
           if is_inline then
             require("codediff.ui.view.inline_view").show_single_file(tabpage, abs_path, {
               side = "modified",
+              render_seq = render_seq,
             })
           else
-            require("codediff.ui.view.side_by_side").show_untracked_file(tabpage, abs_path)
+            require("codediff.ui.view.side_by_side").show_untracked_file(tabpage, abs_path, render_seq)
           end
         end
       end)
@@ -290,6 +298,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
 
     -- Handle deleted files: show old content without diff
     if file_data.status == "D" then
+      local render_seq = lifecycle.begin_render(tabpage)
       vim.schedule(function()
         local sess = lifecycle.get_session(tabpage)
         local is_inline = sess and sess.layout == "inline"
@@ -301,9 +310,10 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
               git_root = git_root,
               rel_path = file_path,
               side = "original",
+              render_seq = render_seq,
             })
           else
-            require("codediff.ui.view.side_by_side").show_deleted_virtual_file(tabpage, git_root, file_path, base_revision)
+            require("codediff.ui.view.side_by_side").show_deleted_virtual_file(tabpage, git_root, file_path, base_revision, render_seq)
           end
         else
           if is_inline then
@@ -313,9 +323,10 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
               git_root = git_root,
               rel_path = file_path,
               side = "original",
+              render_seq = render_seq,
             })
           else
-            require("codediff.ui.view.side_by_side").show_deleted_file(tabpage, git_root, file_path, abs_path, group)
+            require("codediff.ui.view.side_by_side").show_deleted_file(tabpage, git_root, file_path, abs_path, group, render_seq)
           end
         end
       end)
@@ -371,6 +382,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
 
     if base_revision and target_revision and target_revision ~= "WORKING" then
       -- Two revision mode: Compare base vs target
+      local render_seq = lifecycle.begin_render(tabpage)
       vim.schedule(function()
         ---@type SessionConfig
         local session_config = {
@@ -380,6 +392,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
           modified_path = file_path,
           original_revision = base_revision,
           modified_revision = target_revision,
+          render_seq = render_seq,
         }
         view.update(tabpage, session_config, jump)
       end)
@@ -387,9 +400,14 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
     end
 
     -- Use base_revision if provided, otherwise default to HEAD
+    local render_seq = lifecycle.begin_render(tabpage)
     local target_revision_single = base_revision or "HEAD"
     git.resolve_revision(target_revision_single, git_root, function(err_resolve, commit_hash)
       if err_resolve then
+        lifecycle.complete_render(tabpage, render_seq, {
+          path = file_path,
+          skip_pending_navigation = true,
+        })
         vim.schedule(function()
           vim.notify(err_resolve, vim.log.levels.ERROR)
         end)
@@ -407,6 +425,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
             modified_path = abs_path,
             original_revision = commit_hash,
             modified_revision = nil,
+            render_seq = render_seq,
           }
           view.update(tabpage, session_config, jump)
         end)
@@ -439,6 +458,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
             original_revision = original_rev,
             modified_revision = modified_rev,
             conflict = true,
+            render_seq = render_seq,
           }
           view.update(tabpage, session_config, jump)
         end)
@@ -455,6 +475,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
             modified_path = file_path, -- New path after rename
             original_revision = commit_hash,
             modified_revision = ":0",
+            render_seq = render_seq,
           }
           view.update(tabpage, session_config, jump)
         end)
@@ -483,6 +504,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
             modified_path = abs_path,
             original_revision = original_revision,
             modified_revision = nil,
+            render_seq = render_seq,
           }
           view.update(tabpage, session_config, jump)
         end)

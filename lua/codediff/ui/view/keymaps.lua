@@ -564,6 +564,12 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
   if keymaps.prev_hunk then
     lifecycle.set_tab_keymap(tabpage, "n", keymaps.prev_hunk, navigation.prev_hunk, { desc = "Previous hunk" })
   end
+  if keymaps.next_hunk_or_file then
+    lifecycle.set_tab_keymap(tabpage, "n", keymaps.next_hunk_or_file, navigation.next_hunk_or_file, { desc = "Next hunk or file" })
+  end
+  if keymaps.prev_hunk_or_file then
+    lifecycle.set_tab_keymap(tabpage, "n", keymaps.prev_hunk_or_file, navigation.prev_hunk_or_file, { desc = "Previous hunk or file" })
+  end
 
   -- Explorer toggle (e) - only in explorer mode
   if is_explorer_mode and keymaps.toggle_explorer then

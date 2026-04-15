@@ -143,6 +143,8 @@ https://github.com/user-attachments/assets/64c41f01-dffe-4318-bce4-16eec8de356e
         focus_explorer = "<leader>e",   -- Focus explorer panel (explorer mode only)
         next_hunk = "]c",   -- Jump to next change
         prev_hunk = "[c",   -- Jump to previous change
+        next_hunk_or_file = false, -- Next hunk, or next file if already at the last hunk
+        prev_hunk_or_file = false, -- Previous hunk, or previous file if already at the first hunk
         next_file = "]f",   -- Next file in explorer/history mode
         prev_file = "[f",   -- Previous file in explorer/history mode
         diff_get = "do",    -- Get change from other buffer (like vimdiff)

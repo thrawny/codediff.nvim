@@ -300,6 +300,10 @@ function M.create(session_config, filetype, on_ready)
 
           -- Setup auto-sync on file switch (after session is complete!)
           lifecycle.setup_auto_sync_on_file_switch(tabpage, original_is_virtual, modified_is_virtual)
+          lifecycle.complete_render(tabpage, session_config.render_seq, {
+            layout = "side-by-side",
+            path = session_config.modified_path or session_config.original_path,
+          })
 
           -- Signal that view is ready
           if on_ready then
@@ -518,6 +522,10 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
               setup_all_keymaps(tabpage, original_info.bufnr, modified_info.bufnr, is_explorer_mode)
               local conflict = require("codediff.ui.conflict")
               conflict.setup_keymaps(tabpage)
+              lifecycle.complete_render(tabpage, session_config.render_seq, {
+                layout = "side-by-side",
+                path = session_config.modified_path or session_config.original_path,
+              })
             end
           end
         end)
@@ -547,6 +555,10 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
 
         local is_explorer_mode = session.mode == "explorer"
         setup_all_keymaps(tabpage, original_info.bufnr, modified_info.bufnr, is_explorer_mode)
+        lifecycle.complete_render(tabpage, session_config.render_seq, {
+          layout = "side-by-side",
+          path = session_config.modified_path or session_config.original_path,
+        })
 
         -- Restore focus to the window that was active before update
         if saved_current_win and vim.api.nvim_win_is_valid(saved_current_win) then
@@ -774,6 +786,10 @@ local function show_single_file(tabpage, opts)
   end
 
   layout.arrange(tabpage)
+  lifecycle.complete_render(tabpage, opts.render_seq, {
+    layout = "side-by-side",
+    path = opts.modified_path or opts.original_path,
+  })
   if keep_win and vim.api.nvim_win_is_valid(keep_win) then
     welcome_window.sync_later(keep_win)
   end
@@ -796,17 +812,18 @@ local function load_virtual_file(git_root, revision, file_path)
 end
 
 --- Show an untracked file (status "??") — modified pane only
-function M.show_untracked_file(tabpage, file_path)
+function M.show_untracked_file(tabpage, file_path, render_seq)
   show_single_file(tabpage, {
     keep = "modified",
     load_bufnr = load_real_file(file_path),
     file_path = file_path,
     modified_path = file_path,
+    render_seq = render_seq,
   })
 end
 
 --- Show a deleted file (status "D", working tree) — original pane only
-function M.show_deleted_file(tabpage, git_root, file_path, abs_path, group)
+function M.show_deleted_file(tabpage, git_root, file_path, abs_path, group, render_seq)
   local revision = (group == "staged") and "HEAD" or ":0"
   show_single_file(tabpage, {
     keep = "original",
@@ -817,11 +834,12 @@ function M.show_deleted_file(tabpage, git_root, file_path, abs_path, group)
     rel_path = file_path,
     original_path = abs_path,
     original_revision = revision,
+    render_seq = render_seq,
   })
 end
 
 --- Show an added virtual file (status "A") — modified pane only
-function M.show_added_virtual_file(tabpage, git_root, file_path, revision)
+function M.show_added_virtual_file(tabpage, git_root, file_path, revision, render_seq)
   show_single_file(tabpage, {
     keep = "modified",
     load_bufnr = load_virtual_file(git_root, revision, file_path),
@@ -831,11 +849,12 @@ function M.show_added_virtual_file(tabpage, git_root, file_path, revision)
     rel_path = file_path,
     modified_path = file_path,
     modified_revision = revision,
+    render_seq = render_seq,
   })
 end
 
 --- Show a deleted virtual file (status "D", two-revision mode) — original pane only
-function M.show_deleted_virtual_file(tabpage, git_root, file_path, revision)
+function M.show_deleted_virtual_file(tabpage, git_root, file_path, revision, render_seq)
   show_single_file(tabpage, {
     keep = "original",
     load_bufnr = load_virtual_file(git_root, revision, file_path),
@@ -845,6 +864,7 @@ function M.show_deleted_virtual_file(tabpage, git_root, file_path, revision)
     rel_path = file_path,
     original_path = file_path,
     original_revision = revision,
+    render_seq = render_seq,
   })
 end
 

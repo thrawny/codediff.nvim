@@ -45,6 +45,8 @@ local function build_sections(keymaps, is_explorer, is_history, is_conflict)
     { km.quit, "Close codediff tab" },
     { km.next_hunk, "Next hunk" },
     { km.prev_hunk, "Previous hunk" },
+    { km.next_hunk_or_file, "Next hunk or file" },
+    { km.prev_hunk_or_file, "Previous hunk or file" },
     { km.diff_get, "Get change from other buffer" },
     { km.diff_put, "Put change to other buffer" },
     { km.open_in_prev_tab, "Open buffer in previous tab" },

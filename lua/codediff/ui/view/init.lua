@@ -34,6 +34,7 @@ end
 ---@field explorer_data table? For explorer mode: { status_result }
 ---@field history_data table? For history mode: { commits, range, file_path, line_range }
 ---@field line_range table? For history line-range mode: { start_line, end_line }
+---@field render_seq number? Internal render generation for queued navigation
 
 ---@param session_config SessionConfig Session configuration
 ---@param filetype? string Optional filetype for syntax highlighting

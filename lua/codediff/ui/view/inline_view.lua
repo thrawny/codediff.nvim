@@ -144,6 +144,10 @@ function M.create(session_config, filetype, on_ready)
     end)
 
     layout.arrange(tabpage)
+    lifecycle.complete_render(tabpage, session_config.render_seq, {
+      layout = "inline",
+      path = nil,
+    })
 
     vim.api.nvim_exec_autocmds("User", {
       pattern = "CodeDiffOpen",
@@ -241,6 +245,10 @@ function M.create(session_config, filetype, on_ready)
       auto_refresh.enable(modified_info.bufnr)
 
       setup_keymaps(tabpage, original_info.bufnr, modified_info.bufnr)
+      lifecycle.complete_render(tabpage, session_config.render_seq, {
+        layout = "inline",
+        path = session_config.modified_path or session_config.original_path,
+      })
 
       if on_ready then
         on_ready()
@@ -407,6 +415,10 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
 
       setup_keymaps(tabpage, orig_buf, mod_buf)
       layout.arrange(tabpage)
+      lifecycle.complete_render(tabpage, session_config.render_seq, {
+        layout = "inline",
+        path = session_config.modified_path or session_config.original_path,
+      })
 
       if saved_current_win and vim.api.nvim_win_is_valid(saved_current_win) then
         vim.api.nvim_set_current_win(saved_current_win)
@@ -601,6 +613,10 @@ function M.show_single_file(tabpage, file_path, opts)
   local view_keymaps = require("codediff.ui.view.keymaps")
   view_keymaps.setup_all_keymaps(tabpage, orig_bufnr, mod_bufnr, session.mode == "explorer")
   layout.arrange(tabpage)
+  lifecycle.complete_render(tabpage, opts.render_seq, {
+    layout = "inline",
+    path = session_path,
+  })
   welcome_window.sync_later(mod_win)
 end
 
@@ -638,6 +654,10 @@ function M.show_welcome(tabpage, load_bufnr)
   local view_keymaps = require("codediff.ui.view.keymaps")
   view_keymaps.setup_all_keymaps(tabpage, empty_buf, load_bufnr, session.mode == "explorer")
   layout.arrange(tabpage)
+  lifecycle.complete_render(tabpage, nil, {
+    layout = "inline",
+    path = nil,
+  })
   welcome_window.sync_later(mod_win)
 end
 

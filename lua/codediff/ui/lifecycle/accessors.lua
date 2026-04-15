@@ -226,6 +226,97 @@ function M.update_diff_result(tabpage, diff_lines)
   return true
 end
 
+--- Mark a file/render update as in-flight and return its sequence number.
+--- @param tabpage number
+--- @return number|nil render_seq
+function M.begin_render(tabpage)
+  local active_diffs = get_active_diffs()
+  local sess = active_diffs[tabpage]
+  if not sess then
+    return nil
+  end
+
+  sess.render_seq = (sess.render_seq or 0) + 1
+  sess.render_pending = true
+  return sess.render_seq
+end
+
+--- Check whether a render update is still in-flight for this session.
+--- @param tabpage number
+--- @return boolean
+function M.is_render_pending(tabpage)
+  local active_diffs = get_active_diffs()
+  local sess = active_diffs[tabpage]
+  return sess and sess.render_pending or false
+end
+
+--- Queue a navigation action to run after the current render sequence completes.
+--- @param tabpage number
+--- @param kind string
+--- @param render_seq? number
+--- @return boolean
+function M.queue_pending_navigation(tabpage, kind, render_seq)
+  local active_diffs = get_active_diffs()
+  local sess = active_diffs[tabpage]
+  if not sess then
+    return false
+  end
+
+  sess.pending_navigation = {
+    kind = kind,
+    render_seq = render_seq or sess.render_seq,
+  }
+  return true
+end
+
+--- Complete a render update. Stale completions are ignored.
+--- Emits User CodeDiffRender after the latest render is fully ready.
+--- @param tabpage number
+--- @param render_seq? number
+--- @param data? table
+--- @return boolean completed
+function M.complete_render(tabpage, render_seq, data)
+  local active_diffs = get_active_diffs()
+  local sess = active_diffs[tabpage]
+  if not sess then
+    return false
+  end
+
+  local seq = render_seq or sess.render_seq or 0
+  if seq ~= (sess.render_seq or 0) then
+    return false
+  end
+
+  sess.render_pending = false
+  sess.rendered_seq = seq
+
+  local event_data = vim.deepcopy(data or {})
+  event_data.skip_pending_navigation = nil
+  event_data.tabpage = tabpage
+  event_data.render_seq = seq
+
+  vim.api.nvim_exec_autocmds("User", {
+    pattern = "CodeDiffRender",
+    modeline = false,
+    data = event_data,
+  })
+
+  local pending = sess.pending_navigation
+  if pending and pending.render_seq == seq then
+    sess.pending_navigation = nil
+    if not (data and data.skip_pending_navigation) then
+      vim.schedule(function()
+        local ok, navigation = pcall(require, "codediff.ui.view.navigation")
+        if ok and navigation and navigation.flush_pending_navigation then
+          navigation.flush_pending_navigation(tabpage, pending)
+        end
+      end)
+    end
+  end
+
+  return true
+end
+
 --- Update changedtick
 function M.update_changedtick(tabpage, original_tick, modified_tick)
   local active_diffs = get_active_diffs()

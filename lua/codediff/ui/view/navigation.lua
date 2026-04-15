@@ -141,11 +141,7 @@ function M.prev_hunk()
   end
 end
 
--- Navigate to next file in explorer/history mode
--- In single-file history mode, navigates to next commit instead
--- Returns true if navigation succeeded, false otherwise
-function M.next_file()
-  local tabpage = vim.api.nvim_get_current_tabpage()
+local function navigate_file(direction, tabpage)
   local session = lifecycle.get_session(tabpage)
   local panel_obj = lifecycle.get_explorer(tabpage)
 
@@ -157,46 +153,121 @@ function M.next_file()
 
   if is_history_mode then
     local history = require("codediff.ui.history")
-    if panel_obj.is_single_file_mode then
-      history.navigate_next_commit(panel_obj)
+    if direction == "next" then
+      if panel_obj.is_single_file_mode then
+        history.navigate_next_commit(panel_obj)
+      else
+        history.navigate_next(panel_obj)
+      end
     else
-      history.navigate_next(panel_obj)
+      if panel_obj.is_single_file_mode then
+        history.navigate_prev_commit(panel_obj)
+      else
+        history.navigate_prev(panel_obj)
+      end
     end
   else
     local explorer = require("codediff.ui.explorer")
-    explorer.navigate_next(panel_obj)
+    if direction == "next" then
+      explorer.navigate_next(panel_obj)
+    else
+      explorer.navigate_prev(panel_obj)
+    end
   end
 
   return true
+end
+
+local function session_matches_selected_file(tabpage)
+  local session = lifecycle.get_session(tabpage)
+  local explorer = lifecycle.get_explorer(tabpage)
+  if not session or not explorer or not explorer.current_file_path then
+    return true
+  end
+
+  local rel = explorer.current_file_path
+  local abs = session.git_root and (session.git_root .. "/" .. rel) or nil
+  for _, path in ipairs({ session.modified_path, session.original_path }) do
+    if path == rel or (abs and path == abs) then
+      return true
+    end
+  end
+  return false
+end
+
+local function navigate_hunk_or_file(direction, tabpage, queue_if_pending)
+  queue_if_pending = queue_if_pending ~= false
+
+  local session = lifecycle.get_session(tabpage)
+  if not session then
+    return false
+  end
+
+  if lifecycle.is_render_pending(tabpage) and (not session_matches_selected_file(tabpage) or not session.stored_diff_result) then
+    if queue_if_pending then
+      lifecycle.queue_pending_navigation(
+        tabpage,
+        direction == "next" and "next_hunk_or_file" or "prev_hunk_or_file",
+        session.render_seq
+      )
+    end
+    return false
+  end
+
+  if vim.api.nvim_get_current_tabpage() ~= tabpage then
+    return false
+  end
+
+  local old = config.options.diff.cycle_next_hunk
+  config.options.diff.cycle_next_hunk = false
+  local ok, result = pcall(direction == "next" and M.next_hunk or M.prev_hunk)
+  config.options.diff.cycle_next_hunk = old
+  if not ok then
+    error(result)
+  end
+
+  if result then
+    return true
+  end
+
+  return navigate_file(direction, tabpage)
+end
+
+function M.next_hunk_or_file()
+  return navigate_hunk_or_file("next", vim.api.nvim_get_current_tabpage())
+end
+
+function M.prev_hunk_or_file()
+  return navigate_hunk_or_file("prev", vim.api.nvim_get_current_tabpage())
+end
+
+function M.flush_pending_navigation(tabpage, pending)
+  if not pending then
+    return false
+  end
+
+  if pending.kind == "next_hunk_or_file" then
+    return navigate_hunk_or_file("next", tabpage, false)
+  end
+  if pending.kind == "prev_hunk_or_file" then
+    return navigate_hunk_or_file("prev", tabpage, false)
+  end
+
+  return false
+end
+
+-- Navigate to next file in explorer/history mode
+-- In single-file history mode, navigates to next commit instead
+-- Returns true if navigation succeeded, false otherwise
+function M.next_file()
+  return navigate_file("next", vim.api.nvim_get_current_tabpage())
 end
 
 -- Navigate to previous file in explorer/history mode
 -- In single-file history mode, navigates to previous commit instead
 -- Returns true if navigation succeeded, false otherwise
 function M.prev_file()
-  local tabpage = vim.api.nvim_get_current_tabpage()
-  local session = lifecycle.get_session(tabpage)
-  local panel_obj = lifecycle.get_explorer(tabpage)
-
-  if not panel_obj then
-    return false
-  end
-
-  local is_history_mode = session and session.mode == "history"
-
-  if is_history_mode then
-    local history = require("codediff.ui.history")
-    if panel_obj.is_single_file_mode then
-      history.navigate_prev_commit(panel_obj)
-    else
-      history.navigate_prev(panel_obj)
-    end
-  else
-    local explorer = require("codediff.ui.explorer")
-    explorer.navigate_prev(panel_obj)
-  end
-
-  return true
+  return navigate_file("prev", vim.api.nvim_get_current_tabpage())
 end
 
 return M

@@ -223,6 +223,8 @@ Setup entry point:
         focus_explorer = "<leader>e",
         next_hunk = "]c",
         prev_hunk = "[c",
+        next_hunk_or_file = false,
+        prev_hunk_or_file = false,
         next_file = "]f",
         prev_file = "[f",
         diff_get = "do",

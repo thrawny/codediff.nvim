@@ -295,6 +295,7 @@ function M.create(commits, git_root, tabpage, width, opts)
       end
     end
 
+    local render_seq = lifecycle.begin_render(tabpage)
     vim.schedule(function()
       -- Handle added/deleted files: show single file instead of empty diff
       local file_status = file_data.status
@@ -310,12 +311,13 @@ function M.create(commits, git_root, tabpage, width, opts)
             git_root = git_root,
             rel_path = path,
             side = file_status == "D" and "original" or "modified",
+            render_seq = render_seq,
           })
         else
           if file_status == "A" then
-            require("codediff.ui.view.side_by_side").show_added_virtual_file(tabpage, git_root, file_path, commit_hash)
+            require("codediff.ui.view.side_by_side").show_added_virtual_file(tabpage, git_root, file_path, commit_hash, render_seq)
           else
-            require("codediff.ui.view.side_by_side").show_deleted_virtual_file(tabpage, git_root, old_path or file_path, target_hash)
+            require("codediff.ui.view.side_by_side").show_deleted_virtual_file(tabpage, git_root, old_path or file_path, target_hash, render_seq)
           end
         end
         return
@@ -330,6 +332,7 @@ function M.create(commits, git_root, tabpage, width, opts)
         original_revision = target_hash,
         modified_revision = commit_hash,
         line_range = line_range,
+        render_seq = render_seq,
       }
       view.update(tabpage, session_config, config.options.diff.jump_to_first_change)
     end)
