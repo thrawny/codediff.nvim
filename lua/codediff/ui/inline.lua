@@ -386,7 +386,7 @@ function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines
   end
 
   -- Compute syntax highlights for original lines (for virt_line coloring)
-  local filetype = opts and opts.filetype or (vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].filetype or nil)
+  local filetype = opts and opts.filetype or (vim.api.nvim_buf_is_valid(bufnr) and (vim.b[bufnr].codediff_filetype or vim.bo[bufnr].filetype) or nil)
   local syntax_hls = M.compute_syntax_highlights(original_lines, filetype)
 
   local buf_line_count = vim.api.nvim_buf_line_count(bufnr)

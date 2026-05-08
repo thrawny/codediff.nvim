@@ -190,7 +190,7 @@ function M.apply_semantic_tokens(left_buf, right_buf)
   local left_text = table.concat(left_lines, "\n")
 
   -- Get language ID from right buffer's filetype
-  local language_id = vim.bo[right_buf].filetype or "text"
+  local language_id = vim.b[right_buf].codediff_filetype or vim.bo[right_buf].filetype or "text"
 
   -- First, notify LSP about this virtual file via textDocument/didOpen
   local didopen_params = {

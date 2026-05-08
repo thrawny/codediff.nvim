@@ -85,11 +85,13 @@ function M.compute_and_render(
   core.render_diff(original_buf, modified_buf, original_lines, modified_lines, lines_diff)
 
   -- Apply semantic tokens for virtual buffers
-  if original_is_virtual then
-    semantic.apply_semantic_tokens(original_buf, modified_buf)
-  end
-  if modified_is_virtual then
-    semantic.apply_semantic_tokens(modified_buf, original_buf)
+  if config.options.diff.semantic_tokens then
+    if original_is_virtual then
+      semantic.apply_semantic_tokens(original_buf, modified_buf)
+    end
+    if modified_is_virtual then
+      semantic.apply_semantic_tokens(modified_buf, original_buf)
+    end
   end
 
   -- Setup scrollbind synchronization (only if windows provided)
@@ -190,8 +192,10 @@ function M.compute_and_render_conflict(original_buf, modified_buf, base_lines, o
   local render_result = core.render_merge_view(original_buf, modified_buf, base_to_original_diff, base_to_modified_diff, base_lines, original_lines, modified_lines)
 
   -- Apply semantic tokens (both are virtual buffers in conflict mode)
-  semantic.apply_semantic_tokens(original_buf, modified_buf)
-  semantic.apply_semantic_tokens(modified_buf, original_buf)
+  if config.options.diff.semantic_tokens then
+    semantic.apply_semantic_tokens(original_buf, modified_buf)
+    semantic.apply_semantic_tokens(modified_buf, original_buf)
+  end
 
   -- Setup window options with scrollbind (filler lines enable proper alignment)
   if original_win and modified_win and vim.api.nvim_win_is_valid(original_win) and vim.api.nvim_win_is_valid(modified_win) then

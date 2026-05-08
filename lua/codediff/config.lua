@@ -31,6 +31,7 @@ M.defaults = {
   diff = {
     layout = "side-by-side", -- Diff layout: "side-by-side" or "inline"
     disable_inlay_hints = true, -- Disable inlay hints in diff windows for cleaner view
+    semantic_tokens = false, -- Request LSP semantic tokens for virtual diff buffers (can be expensive for large diffs)
     max_computation_time_ms = 5000, -- Maximum time for diff computation (5 seconds, VSCode default)
     ignore_trim_whitespace = false, -- Ignore leading/trailing whitespace changes (like diffopt+=iwhite)
     hide_merge_artifacts = false, -- Hide merge tool temp files (*.orig, *.BACKUP.*, *.BASE.*, *.LOCAL.*, *.REMOTE.*)

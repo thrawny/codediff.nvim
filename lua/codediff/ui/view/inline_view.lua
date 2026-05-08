@@ -42,13 +42,16 @@ local function compute_and_render_inline(
     return nil
   end
 
-  inline.render_inline_diff(modified_buf, lines_diff, original_lines, modified_lines)
+  local ft = vim.b[modified_buf].codediff_filetype or vim.bo[modified_buf].filetype
+  inline.render_inline_diff(modified_buf, lines_diff, original_lines, modified_lines, { filetype = ft })
 
-  if original_is_virtual then
-    semantic.apply_semantic_tokens(original_buf, modified_buf)
-  end
-  if modified_is_virtual then
-    semantic.apply_semantic_tokens(modified_buf, original_buf)
+  if config.options.diff.semantic_tokens then
+    if original_is_virtual then
+      semantic.apply_semantic_tokens(original_buf, modified_buf)
+    end
+    if modified_is_virtual then
+      semantic.apply_semantic_tokens(modified_buf, original_buf)
+    end
   end
 
   if modified_win and vim.api.nvim_win_is_valid(modified_win) then
@@ -369,7 +372,9 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
     vim.api.nvim_win_set_buf(modified_win, mod_buf)
     local ft = vim.filetype.match({ filename = session_config.modified_path })
     if ft then
-      vim.bo[mod_buf].filetype = ft
+      vim.b[mod_buf].codediff_filetype = ft
+      local lang = vim.treesitter.language.get_lang(ft) or ft
+      pcall(vim.treesitter.start, mod_buf, lang)
     end
   else
     local modified_info = prepare_buffer(false, session_config.git_root, nil, session_config.modified_path)
@@ -568,7 +573,9 @@ function M.show_single_file(tabpage, file_path, opts)
     welcome_window.sync(mod_win)
     local ft = vim.filetype.match({ filename = opts.rel_path or file_path })
     if ft then
-      vim.bo[file_bufnr].filetype = ft
+      vim.b[file_bufnr].codediff_filetype = ft
+      local lang = vim.treesitter.language.get_lang(ft) or ft
+      pcall(vim.treesitter.start, file_bufnr, lang)
     end
 
     local git = require("codediff.core.git")
