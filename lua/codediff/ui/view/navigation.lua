@@ -11,6 +11,36 @@ local function echo_hunk_message(chunks)
   vim.api.nvim_echo(chunks, false, {})
 end
 
+local function center_window(win)
+  vim.api.nvim_win_call(win, function()
+    vim.cmd("normal! zz")
+  end)
+end
+
+local function get_hunk_target(session)
+  local current_buf = vim.api.nvim_get_current_buf()
+  local is_original = current_buf == session.original_bufnr
+  local is_modified = current_buf == session.modified_bufnr
+  local is_result = session.result_bufnr and current_buf == session.result_bufnr
+  local target_win = vim.api.nvim_get_current_win()
+
+  if session.layout == "inline" then
+    is_original = false
+    target_win = session.modified_win or target_win
+  elseif is_result then
+    is_original = false
+  elseif not is_original and not is_modified then
+    is_original = false
+    target_win = session.modified_win
+  end
+
+  if not (target_win and vim.api.nvim_win_is_valid(target_win)) then
+    return nil, nil
+  end
+
+  return target_win, is_original
+end
+
 -- Navigate to next hunk in the current diff view
 -- Returns true if navigation succeeded, false otherwise
 function M.next_hunk()
@@ -25,41 +55,21 @@ function M.next_hunk()
     return false
   end
 
-  local current_buf = vim.api.nvim_get_current_buf()
-  local original_bufnr = session.original_bufnr
-  local modified_bufnr = session.modified_bufnr
-  local is_inline = session.layout == "inline"
-
-  local is_original = current_buf == original_bufnr
-  local is_modified = current_buf == modified_bufnr
-  local is_result = session.result_bufnr and current_buf == session.result_bufnr
-
-  -- Inline mode: always use modified line numbers
-  if is_inline then
-    is_original = false
-  -- If cursor is in result buffer (conflict mode), use modified side line numbers
-  elseif is_result then
-    is_original = false
-  -- If cursor is not in any diff buffer, switch to modified window
-  elseif not is_original and not is_modified then
-    is_original = false
-    local target_win = session.modified_win
-    if target_win and vim.api.nvim_win_is_valid(target_win) then
-      vim.api.nvim_set_current_win(target_win)
-    else
-      return false
-    end
+  local target_win, is_original = get_hunk_target(session)
+  if not target_win then
+    return false
   end
 
-  local cursor = vim.api.nvim_win_get_cursor(0)
+  local cursor = vim.api.nvim_win_get_cursor(target_win)
   local current_line = cursor[1]
 
   -- Find next hunk after current line
   for i, mapping in ipairs(diff_result.changes) do
     local target_line = is_original and mapping.original.start_line or mapping.modified.start_line
     if target_line > current_line then
-      pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
-      vim.cmd("normal! zz")
+      pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
+      vim.api.nvim_set_current_win(target_win)
+      center_window(target_win)
       echo_hunk_message({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } })
       return true
     end
@@ -69,8 +79,9 @@ function M.next_hunk()
   if config.options.diff.cycle_next_hunk then
     local first_hunk = diff_result.changes[1]
     local target_line = is_original and first_hunk.original.start_line or first_hunk.modified.start_line
-    pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
-    vim.cmd("normal! zz")
+    pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
+    vim.api.nvim_set_current_win(target_win)
+    center_window(target_win)
     echo_hunk_message({ { string.format("Hunk 1 of %d", #diff_result.changes), "None" } })
     return true
   else
@@ -93,33 +104,12 @@ function M.prev_hunk()
     return false
   end
 
-  local current_buf = vim.api.nvim_get_current_buf()
-  local original_bufnr = session.original_bufnr
-  local modified_bufnr = session.modified_bufnr
-  local is_inline = session.layout == "inline"
-
-  local is_original = current_buf == original_bufnr
-  local is_modified = current_buf == modified_bufnr
-  local is_result = session.result_bufnr and current_buf == session.result_bufnr
-
-  -- Inline mode: always use modified line numbers
-  if is_inline then
-    is_original = false
-  -- If cursor is in result buffer (conflict mode), use modified side line numbers
-  elseif is_result then
-    is_original = false
-  -- If cursor is not in any diff buffer, switch to modified window
-  elseif not is_original and not is_modified then
-    is_original = false
-    local target_win = session.modified_win
-    if target_win and vim.api.nvim_win_is_valid(target_win) then
-      vim.api.nvim_set_current_win(target_win)
-    else
-      return false
-    end
+  local target_win, is_original = get_hunk_target(session)
+  if not target_win then
+    return false
   end
 
-  local cursor = vim.api.nvim_win_get_cursor(0)
+  local cursor = vim.api.nvim_win_get_cursor(target_win)
   local current_line = cursor[1]
 
   -- Find previous hunk before current line (search backwards)
@@ -127,8 +117,9 @@ function M.prev_hunk()
     local mapping = diff_result.changes[i]
     local target_line = is_original and mapping.original.start_line or mapping.modified.start_line
     if target_line < current_line then
-      pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
-      vim.cmd("normal! zz")
+      pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
+      vim.api.nvim_set_current_win(target_win)
+      center_window(target_win)
       echo_hunk_message({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } })
       return true
     end
@@ -138,8 +129,9 @@ function M.prev_hunk()
   if config.options.diff.cycle_next_hunk then
     local last_hunk = diff_result.changes[#diff_result.changes]
     local target_line = is_original and last_hunk.original.start_line or last_hunk.modified.start_line
-    pcall(vim.api.nvim_win_set_cursor, 0, { target_line, 0 })
-    vim.cmd("normal! zz")
+    pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
+    vim.api.nvim_set_current_win(target_win)
+    center_window(target_win)
     echo_hunk_message({ { string.format("Hunk %d of %d", #diff_result.changes, #diff_result.changes), "None" } })
     return true
   else
@@ -212,11 +204,7 @@ local function navigate_hunk_or_file(direction, tabpage, queue_if_pending)
 
   if lifecycle.is_render_pending(tabpage) and (not session_matches_selected_file(tabpage) or not session.stored_diff_result) then
     if queue_if_pending then
-      lifecycle.queue_pending_navigation(
-        tabpage,
-        direction == "next" and "next_hunk_or_file" or "prev_hunk_or_file",
-        session.render_seq
-      )
+      lifecycle.queue_pending_navigation(tabpage, direction == "next" and "next_hunk_or_file" or "prev_hunk_or_file", session.render_seq)
     end
     return false
   end
