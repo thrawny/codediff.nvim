@@ -1,12 +1,15 @@
 -- Auto-refresh and refresh logic for history panel
 local M = {}
 
+local focus = require("codediff.ui.focus")
 local git = require("codediff.core.git")
 local render_module = require("codediff.ui.history.render")
 
 -- Setup auto-refresh triggers for history panel
 -- Returns a cleanup function that should be called when the history is destroyed
 function M.setup_auto_refresh(history, tabpage)
+  focus.setup()
+
   local refresh_timer = nil
   local debounce_ms = 500
   local git_watcher = nil
@@ -37,8 +40,10 @@ function M.setup_auto_refresh(history, tabpage)
       vim.fn.timer_stop(refresh_timer)
     end
     refresh_timer = vim.fn.timer_start(debounce_ms, function()
-      if vim.api.nvim_tabpage_is_valid(tabpage) and not history.is_hidden then
+      if focus.is_tab_focused(tabpage) and not history.is_hidden then
         M.refresh(history)
+      elseif vim.api.nvim_tabpage_is_valid(tabpage) then
+        history._pending_refresh = true
       end
       refresh_timer = nil
     end)
@@ -71,8 +76,13 @@ function M.setup_auto_refresh(history, tabpage)
                 if watch_err then
                   return
                 end
-                if vim.api.nvim_get_current_tabpage() == tabpage and vim.api.nvim_tabpage_is_valid(tabpage) and not history.is_hidden then
+                if not vim.api.nvim_tabpage_is_valid(tabpage) or history.is_hidden then
+                  return
+                end
+                if focus.is_tab_focused(tabpage) then
                   debounced_refresh()
+                else
+                  history._pending_refresh = true
                 end
               end)
             )
@@ -93,6 +103,17 @@ function M.setup_auto_refresh(history, tabpage)
     group = group,
     pattern = tostring(tabpage),
     callback = cleanup,
+  })
+
+  -- Flush pending refresh when returning to the focused history tab/window.
+  vim.api.nvim_create_autocmd({ "TabEnter", "FocusGained" }, {
+    group = group,
+    callback = function()
+      if history._pending_refresh and focus.is_tab_focused(tabpage) then
+        history._pending_refresh = nil
+        debounced_refresh()
+      end
+    end,
   })
 
   return cleanup

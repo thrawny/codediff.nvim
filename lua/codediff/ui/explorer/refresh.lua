@@ -2,11 +2,14 @@
 local M = {}
 
 local config = require("codediff.config")
+local focus = require("codediff.ui.focus")
 local tree_module = require("codediff.ui.explorer.tree")
 local welcome = require("codediff.ui.welcome")
 -- Setup auto-refresh triggers for explorer
 -- Returns a cleanup function that should be called when the explorer is destroyed
 function M.setup_auto_refresh(explorer, tabpage)
+  focus.setup()
+
   local refresh_timer = nil
   local debounce_ms = 500 -- Wait 500ms after last event
   local git_watcher = nil
@@ -41,11 +44,14 @@ function M.setup_auto_refresh(explorer, tabpage)
 
     -- Schedule new refresh
     refresh_timer = vim.fn.timer_start(debounce_ms, function()
-      -- Only refresh if tabpage still exists and explorer is visible
-      if vim.api.nvim_tabpage_is_valid(tabpage) and not explorer.is_hidden then
+      -- Only refresh while this Neovim window and codediff tab are focused.
+      -- If repo activity happens elsewhere, mark pending and catch up on TabEnter/FocusGained.
+      if focus.is_tab_focused(tabpage) and not explorer.is_hidden then
         M.refresh(explorer)
         local auto_refresh = require("codediff.ui.auto_refresh")
         auto_refresh.sync_mutable_buffers(tabpage)
+      elseif vim.api.nvim_tabpage_is_valid(tabpage) then
+        explorer._pending_refresh = true
       end
       refresh_timer = nil
     end)
@@ -97,7 +103,7 @@ function M.setup_auto_refresh(explorer, tabpage)
                 if not vim.api.nvim_tabpage_is_valid(tabpage) or explorer.is_hidden then
                   return
                 end
-                if vim.api.nvim_get_current_tabpage() == tabpage then
+                if focus.is_tab_focused(tabpage) then
                   debounced_refresh()
                 else
                   explorer._pending_refresh = true
@@ -124,11 +130,11 @@ function M.setup_auto_refresh(explorer, tabpage)
     callback = cleanup,
   })
 
-  -- Flush pending refresh when returning to the codediff tab
-  vim.api.nvim_create_autocmd("TabEnter", {
+  -- Flush pending refresh when returning to the focused codediff tab/window.
+  vim.api.nvim_create_autocmd({ "TabEnter", "FocusGained" }, {
     group = group,
     callback = function()
-      if explorer._pending_refresh and vim.api.nvim_get_current_tabpage() == tabpage then
+      if explorer._pending_refresh and focus.is_tab_focused(tabpage) then
         explorer._pending_refresh = nil
         debounced_refresh()
       end
