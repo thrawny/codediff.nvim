@@ -209,6 +209,16 @@ Setup entry point:
       flatten_dirs = true,
       file_filter = {
         ignore = { ".git/**", ".jj/**" },
+        gitattributes_generated = true,
+        generated = {
+          "**/generated/**",
+          "**/gen/**",
+          "*.gen.go",
+          "*_generated.go",
+          "*.pb.go",
+          "*.pb.gw.go",
+          "zz_generated.*",
+        },
       },
       visible_groups = {
         staged = true,

@@ -62,6 +62,16 @@ M.defaults = {
     },
     file_filter = {
       ignore = { ".git/**", ".jj/**" }, -- Glob patterns to hide (e.g., {"*.lock", "dist/*"})
+      gitattributes_generated = true, -- Also collapse files marked linguist-generated in root .gitattributes
+      generated = { -- Glob patterns to collapse by default (GitHub PR-style)
+        "**/generated/**",
+        "**/gen/**",
+        "*.gen.go",
+        "*_generated.go",
+        "*.pb.go",
+        "*.pb.gw.go",
+        "zz_generated.*",
+      },
     },
     focus_on_select = false, -- Jump to modified pane after selecting a file (default: stay in explorer)
     flatten_dirs = true, -- Flatten single-child directory chains in tree view (e.g., src/components/ui/)

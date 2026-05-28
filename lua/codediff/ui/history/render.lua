@@ -219,17 +219,26 @@ function M.create(commits, git_root, tabpage, width, opts)
         local explorer_config = config.options.explorer or {}
         local file_filter = explorer_config.file_filter or {}
         local ignore_patterns = file_filter.ignore or {}
+        local generated_patterns = file_filter.generated or {}
+        local use_gitattributes = file_filter.gitattributes_generated ~= false
         files = filter.apply(files, ignore_patterns)
+        local regular_files, generated_files = filter.split_generated(files, generated_patterns, git_root, use_gitattributes)
 
         -- Create file nodes based on view_mode
         local history_config = config.options.history or {}
         local view_mode = history_config.view_mode or "list"
 
         local file_nodes
+        local generated_nodes
         if view_mode == "tree" then
-          file_nodes = nodes_module.create_tree_file_nodes(files, data.hash, git_root)
+          file_nodes = nodes_module.create_tree_file_nodes(regular_files, data.hash, git_root)
+          generated_nodes = nodes_module.create_tree_file_nodes(generated_files, data.hash, git_root)
         else
-          file_nodes = nodes_module.create_list_file_nodes(files, data.hash, git_root)
+          file_nodes = nodes_module.create_list_file_nodes(regular_files, data.hash, git_root)
+          generated_nodes = nodes_module.create_list_file_nodes(generated_files, data.hash, git_root)
+        end
+        if #generated_nodes > 0 then
+          file_nodes[#file_nodes + 1] = nodes_module.create_generated_group(generated_nodes, data.hash)
         end
 
         -- Update node with children
@@ -247,7 +256,7 @@ function M.create(commits, git_root, tabpage, width, opts)
           local function expand_directories(node_ids)
             for _, node_id in ipairs(node_ids) do
               local node = tree:get_node(node_id)
-              if node and node.data and node.data.type == "directory" then
+              if node and node.data and node.data.type == "directory" and not node.data.default_collapsed then
                 node:expand()
                 expand_directories(node:get_child_ids() or {})
               end

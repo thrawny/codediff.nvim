@@ -144,9 +144,19 @@ function M.setup_auto_refresh(explorer, tabpage)
   return cleanup
 end
 
--- Collect collapsed state from tree (groups and directories that user manually collapsed)
-local function collect_collapsed_state(tree)
-  local collapsed = {}
+local function get_fold_key(node)
+  local data = node and node.data
+  if not data then
+    return nil
+  end
+  return data.collapse_key or data.dir_path or data.path or data.name
+end
+
+-- Collect explicit fold state from tree (groups and directories the user may have toggled).
+-- Store both open and closed states: generated groups are closed by default, so remembering
+-- only collapsed nodes makes user-expanded generated groups snap shut on refresh.
+local function collect_fold_state(tree)
+  local fold_state = {}
 
   local function collect_from_node(node)
     if not node.data then
@@ -154,10 +164,9 @@ local function collect_collapsed_state(tree)
     end
     local node_type = node.data.type
     if node_type == "group" or node_type == "directory" then
-      -- Use path for directories, name for groups as unique key
-      local key = node.data.path or node.data.name
-      if key and not node:is_expanded() then
-        collapsed[key] = true
+      local key = get_fold_key(node)
+      if key then
+        fold_state[key] = node:is_expanded()
       end
       -- Recurse into children
       if node:has_children() then
@@ -176,19 +185,22 @@ local function collect_collapsed_state(tree)
     collect_from_node(node)
   end
 
-  return collapsed
+  return fold_state
 end
 
--- Restore collapsed state after tree rebuild
-local function restore_collapsed_state(tree, collapsed, root_nodes)
+-- Restore explicit fold state after tree rebuild.
+local function restore_fold_state(tree, fold_state, root_nodes)
   local function restore_node(node)
     if not node.data then
       return
     end
     local node_type = node.data.type
     if node_type == "group" or node_type == "directory" then
-      local key = node.data.path or node.data.name
-      if key and collapsed[key] then
+      local key = get_fold_key(node)
+      local is_expanded = key and fold_state[key]
+      if is_expanded == true then
+        node:expand()
+      elseif is_expanded == false then
         node:collapse()
       end
       -- Recurse into children
@@ -226,8 +238,8 @@ function M.refresh(explorer)
   local current_node = explorer.tree:get_node()
   local current_path = current_node and current_node.data and current_node.data.path
 
-  -- Collect collapsed state before async operation
-  local collapsed_state = collect_collapsed_state(explorer.tree)
+  -- Collect fold state before async operation
+  local fold_state = collect_fold_state(explorer.tree)
 
   local function process_result(err, status_result)
     vim.schedule(function()
@@ -239,9 +251,11 @@ function M.refresh(explorer)
       -- Rebuild tree nodes using same structure as create_tree_data
       local root_nodes = tree_module.create_tree_data(status_result, explorer.git_root, explorer.base_revision, not explorer.git_root, explorer.visible_groups)
 
-      -- Expand all groups
+      -- Expand groups unless they are intended to start collapsed.
       for _, node in ipairs(root_nodes) do
-        node:expand()
+        if not (node.data and node.data.default_collapsed) then
+          node:expand()
+        end
       end
 
       -- Update tree
@@ -256,7 +270,7 @@ function M.refresh(explorer)
           end
           for _, child_id in ipairs(parent_node:get_child_ids()) do
             local child = explorer.tree:get_node(child_id)
-            if child and child.data and child.data.type == "directory" then
+            if child and child.data and child.data.type == "directory" and not child.data.default_collapsed then
               child:expand()
               expand_all_dirs(child)
             end
@@ -267,8 +281,8 @@ function M.refresh(explorer)
         end
       end
 
-      -- Restore user's collapsed state (must be after expand_all_dirs)
-      restore_collapsed_state(explorer.tree, collapsed_state, root_nodes)
+      -- Restore user's fold state (must be after expand_all_dirs)
+      restore_fold_state(explorer.tree, fold_state, root_nodes)
 
       explorer.tree:render()
 

@@ -131,7 +131,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
 
   -- get_child_ids returns IDs, need to get actual nodes
   for _, node in ipairs(tree_data) do
-    if node.data and node.data.type == "group" then
+    if node.data and node.data.type == "group" and not node.data.default_collapsed then
       node:expand()
     end
   end
@@ -555,19 +555,40 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
     return nil, nil
   end
 
-  -- Select initial file: prefer focus_file (current buffer) if changed, else first file
+  -- Select initial file: prefer focus_file (current buffer) if changed, else first non-generated file.
   local initial_file, initial_file_group
   local focus_file = opts and opts.focus_file
   if focus_file then
     initial_file, initial_file_group = find_file_in_status(focus_file)
   end
   if not initial_file then
-    if status_result.conflicts and #status_result.conflicts > 0 then
-      initial_file, initial_file_group = status_result.conflicts[1], "conflicts"
-    elseif #status_result.unstaged > 0 then
-      initial_file, initial_file_group = status_result.unstaged[1], "unstaged"
-    elseif #status_result.staged > 0 then
-      initial_file, initial_file_group = status_result.staged[1], "staged"
+    local filter = require("codediff.ui.explorer.filter")
+    local file_filter = explorer_config.file_filter or {}
+    local generated_patterns = file_filter.generated or {}
+    local use_gitattributes = file_filter.gitattributes_generated ~= false
+    local fallback_file, fallback_group
+    local function pick_first(files, group)
+      for _, file in ipairs(files or {}) do
+        if not fallback_file then
+          fallback_file, fallback_group = file, group
+        end
+        if
+          not filter.is_generated(file.path, generated_patterns, git_root, use_gitattributes)
+          and not (file.old_path and filter.is_generated(file.old_path, generated_patterns, git_root, use_gitattributes))
+        then
+          initial_file, initial_file_group = file, group
+          return true
+        end
+      end
+      return false
+    end
+
+    if
+      not (status_result.conflicts and pick_first(status_result.conflicts, "conflicts"))
+      and not pick_first(status_result.unstaged, "unstaged")
+      and not pick_first(status_result.staged, "staged")
+    then
+      initial_file, initial_file_group = fallback_file, fallback_group
     end
   end
 

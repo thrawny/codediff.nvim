@@ -117,6 +117,16 @@ https://github.com/user-attachments/assets/64c41f01-dffe-4318-bce4-16eec8de356e
       flatten_dirs = true,   -- Flatten single-child directory chains in tree view
       file_filter = {
         ignore = { ".git/**", ".jj/**" },  -- Glob patterns to hide (e.g., {"*.lock", "dist/*"})
+        gitattributes_generated = true,   -- Collapse files marked linguist-generated in root .gitattributes
+        generated = {                     -- Glob patterns to collapse by default
+          "**/generated/**",
+          "**/gen/**",
+          "*.gen.go",
+          "*_generated.go",
+          "*.pb.go",
+          "*.pb.gw.go",
+          "zz_generated.*",
+        },
       },
       focus_on_select = false,  -- Jump to modified pane after selecting a file (default: stay in explorer)
       visible_groups = {       -- Which groups to show (can be toggled at runtime)

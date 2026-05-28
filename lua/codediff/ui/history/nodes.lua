@@ -105,6 +105,20 @@ function M.create_list_file_nodes(files, commit_hash, git_root)
   return file_nodes
 end
 
+function M.create_generated_group(file_nodes, commit_hash)
+  return Tree.Node({
+    id = "generated:" .. commit_hash,
+    text = "Generated files",
+    data = {
+      type = "directory",
+      name = "Generated files",
+      dir_path = "__generated__",
+      indent_state = { true },
+      default_collapsed = true,
+    },
+  }, file_nodes)
+end
+
 -- Create tree file nodes for a commit (organized by directory)
 -- files: array of { path, status, old_path }
 -- commit_hash: the commit hash these files belong to
