@@ -1,7 +1,7 @@
 -- Test init file for plenary tests
 -- This loads the plugin and plenary.nvim
 
--- Disable auto-installation in tests (library is already built by CI)
+-- Disable auto-installation in tests (engine deps are installed by CI/make)
 vim.env.VSCODE_DIFF_NO_AUTO_INSTALL = "1"
 
 -- Disable ShaDa (fixes Windows permission issues in CI)

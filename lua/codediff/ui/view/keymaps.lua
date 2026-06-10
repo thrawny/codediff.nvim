@@ -75,8 +75,11 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
     end
 
     local current_buf = vim.api.nvim_get_current_buf()
-    -- In inline mode, always use modified ranges
-    local is_original = not is_inline and current_buf == original_bufnr
+    -- In inline mode, always use modified ranges. Resolve the original buffer
+    -- from the live session: layout toggles can recreate buffers, leaving the
+    -- closure's bufnr stale.
+    local live_original = session.original_bufnr or original_bufnr
+    local is_original = not is_inline and current_buf == live_original
     local cursor = vim.api.nvim_win_get_cursor(0)
     local current_line = cursor[1]
 
@@ -102,9 +105,14 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
       return
     end
 
+    -- Use live session buffers: layout toggles can recreate buffers, leaving
+    -- the closure's bufnrs stale.
+    local live_original = session.original_bufnr or original_bufnr
+    local live_modified = session.modified_bufnr or modified_bufnr
+
     if is_inline then
       -- Inline mode: revert modified lines to original
-      if not vim.bo[modified_bufnr].modifiable then
+      if not vim.bo[live_modified].modifiable then
         vim.notify("Buffer is not modifiable", vim.log.levels.WARN)
         return
       end
@@ -115,18 +123,18 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
         return
       end
 
-      local orig_lines = vim.api.nvim_buf_get_lines(original_bufnr, hunk.original.start_line - 1, hunk.original.end_line - 1, false)
-      vim.api.nvim_buf_set_lines(modified_bufnr, hunk.modified.start_line - 1, hunk.modified.end_line - 1, false, orig_lines)
-      auto_refresh.trigger(modified_bufnr)
+      local orig_lines = vim.api.nvim_buf_get_lines(live_original, hunk.original.start_line - 1, hunk.original.end_line - 1, false)
+      vim.api.nvim_buf_set_lines(live_modified, hunk.modified.start_line - 1, hunk.modified.end_line - 1, false, orig_lines)
+      auto_refresh.trigger(live_modified)
       vim.api.nvim_echo({ { string.format("Reverted hunk %d", hunk_idx), "None" } }, false, {})
       return
     end
 
     -- Side-by-side mode: copy from other buffer to current
     local current_buf = vim.api.nvim_get_current_buf()
-    local is_original = current_buf == original_bufnr
+    local is_original = current_buf == live_original
     local target_buf = current_buf
-    local source_buf = is_original and modified_bufnr or original_bufnr
+    local source_buf = is_original and live_modified or live_original
 
     -- Check if target buffer is modifiable
     if not vim.bo[target_buf].modifiable then
@@ -170,10 +178,13 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
     end
 
     -- Side-by-side mode: copy from current buffer to other
+    -- (live session buffers: see diff_get)
+    local live_original = session.original_bufnr or original_bufnr
+    local live_modified = session.modified_bufnr or modified_bufnr
     local current_buf = vim.api.nvim_get_current_buf()
-    local is_original = current_buf == original_bufnr
+    local is_original = current_buf == live_original
     local source_buf = current_buf
-    local target_buf = is_original and modified_bufnr or original_bufnr
+    local target_buf = is_original and live_modified or live_original
 
     -- Check if target buffer is modifiable
     if not vim.bo[target_buf].modifiable then

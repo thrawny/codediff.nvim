@@ -22,7 +22,7 @@ lua/codediff/
 ├── config.lua            -- Configuration options
 ├── commands.lua          -- :CodeDiff command handling
 ├── core/
-│   ├── diff.lua          -- FFI diff computation (C library)
+│   ├── diff.lua          -- Diff computation client (Bun engine in engine/)
 │   ├── git.lua           -- Async git operations
 │   ├── dir.lua           -- Directory comparison
 │   └── virtual_file.lua  -- Virtual buffer handling

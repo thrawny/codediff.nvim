@@ -4,61 +4,21 @@ This project includes code from or is derived from the following open source pro
 
 ---
 
-## Bundled Dependencies
+## Engine Dependencies
 
-### utf8proc
+### @pierre/diffs
 
-**License**: MIT License  
-**Copyright**: Copyright (c) 2014-2021 Steven G. Johnson, Jiahao Chen, Tony Kelman, Jonas Fonseca, and other contributors  
-**Source**: https://github.com/JuliaStrings/utf8proc  
-**Location**: `libvscode-diff/vendor/`  
-**Purpose**: UTF-8 Unicode string processing  
+**License**: Apache License 2.0  
+**Source**: https://github.com/pierredotco/diffs  
+**Location**: `engine/` (installed via `bun install`)  
+**Purpose**: Diff parsing and hunk model — the same diff core used by [Hunk](https://github.com/modem-dev/hunk)
 
-Full license text: [libvscode-diff/vendor/utf8proc_LICENSE.md](libvscode-diff/vendor/utf8proc_LICENSE.md)
+### jsdiff (`diff`)
 
----
-
-## Derivative Works
-
-### Microsoft Visual Studio Code
-
-**License**: MIT License  
-**Copyright**: Copyright (c) Microsoft Corporation  
-**Source**: https://github.com/microsoft/vscode  
-**Description**: The diff computation algorithm in this project is a C port of VSCode's `defaultLinesDiffComputer` implementation. The algorithm, data structures, and optimization heuristics are derived from VSCode's TypeScript source code.
-
-**Key Components Ported**:
-- Myers diff algorithm (`src/vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.ts`)
-- Dynamic Programming algorithm (`src/vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.ts`)
-- Line-level optimization heuristics (`src/vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations.ts`)
-- Character-level refinement (`src/vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.ts`)
-- Range mapping data structures (`src/vs/editor/common/diff/rangeMapping.ts`)
-
-**VSCode License**: MIT License (see [official license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt))
-
-```
-MIT License
-
-Copyright (c) Microsoft Corporation
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+**License**: BSD 3-Clause License  
+**Source**: https://github.com/kpdecker/jsdiff  
+**Location**: `engine/` (installed via `bun install`)  
+**Purpose**: Unified patch generation and word-level inner diffs
 
 ---
 
@@ -353,9 +313,9 @@ Colorschemes used in documentation screenshots:
 
 We would like to thank:
 
-- **Microsoft Corporation** and the VSCode team for creating and open-sourcing an excellent diff algorithm implementation
+- **Microsoft Corporation** and the VSCode team, whose diff rendering this plugin's UI is modeled after
+- **The Pierre team** for the `@pierre/diffs` engine and the **Hunk** project for showing how to build on it
 - **The Neovim contributors** for LSP infrastructure and semantic token support
-- **The JuliaStrings project** and utf8proc contributors for providing a robust Unicode processing library
 - **Tim Pope** (vim-fugitive) for pioneering the virtual file URL pattern
 - **The Neovim community** for creating the plugin ecosystem and supporting libraries
 - **Colorscheme authors** (folke, EdenEast, Catppuccin Community, rebelot) for their beautiful themes used in our documentation

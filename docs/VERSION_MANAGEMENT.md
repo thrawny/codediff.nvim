@@ -7,8 +7,7 @@ This project uses semantic versioning (MAJOR.MINOR.PATCH) with automated version
 **Single source of truth:** `VERSION` file at repository root.
 
 All other files read from this:
-- `CMakeLists.txt` (root)
-- `c-diff-core/CMakeLists.txt`
+- `lua/codediff/version.lua` (reads at module load)
 - Git tags (on release)
 
 ## Semantic Versioning
@@ -114,15 +113,6 @@ Contains single line with version number:
 0.3.0
 ```
 
-### CMake Integration
-
-CMakeLists.txt reads VERSION file:
-```cmake
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PROJECT_VERSION)
-string(STRIP "${PROJECT_VERSION}" PROJECT_VERSION)
-project(codediff-nvim VERSION ${PROJECT_VERSION})
-```
-
 ### Bump Script
 
 ES Module script (`scripts/bump_version.mjs`):
@@ -205,14 +195,6 @@ git push origin :refs/tags/v0.3.0
 git push origin v0.3.0
 ```
 
-### CMake not picking up new version?
-
-Clean and rebuild:
-```bash
-make clean
-cmake -B build
-```
-
 ## Best Practices
 
 1. **Always bump before release** - Never release with same version
@@ -237,6 +219,3 @@ For automated releases:
     release_name: Release v${{ env.VERSION }}
 ```
 
-## See Also
-
-- **[dependency-distribution.md](dependency-distribution.md)** - How dependencies (libgomp) are bundled and distributed with releases

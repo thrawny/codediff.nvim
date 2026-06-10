@@ -1,11 +1,11 @@
--- Test: FFI Integration
--- Validates C <-> Lua boundary and data structure conversion
+-- Test: Engine Integration
+-- Validates Bun engine <-> Lua boundary and data structure conversion
 
 local diff = require('codediff.core.diff')
 
-describe("FFI Integration", function()
+describe("Engine Integration", function()
   -- Test 1: Basic FFI call works
-  it("FFI can call compute_diff", function()
+  it("engine can compute_diff", function()
     local result = diff.compute_diff({"a"}, {"b"})
     assert.is_not_nil(result, "Result should not be nil")
   end)

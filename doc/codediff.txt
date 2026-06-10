@@ -22,7 +22,8 @@ COMMANDS                                                  *codediff-commands*
 
 :CodeDiff install
 :CodeDiff install!
-    Manually install/update the C library (optional; auto-installed on use).
+    Manually install/update the diff engine dependencies (runs `bun install`
+    in the plugin's engine/ directory; optional; auto-installed on use).
 
 ==============================================================================
 USAGE                                                       *codediff-usage*

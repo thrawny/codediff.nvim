@@ -130,54 +130,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Prepare release assets
-        run: |
-          VERSION=${{ needs.version-and-tag.outputs.version }}
-          mkdir -p release-assets
-
-          # Linux x64
-          if [ -f artifacts/linux-x64/libvscode_diff.so ]; then
-            cp artifacts/linux-x64/libvscode_diff.so release-assets/libvscode_diff_linux_x64_${VERSION}.so
-          fi
-          if [ -f artifacts/linux-x64/libgomp.so.1 ]; then
-            cp artifacts/linux-x64/libgomp.so.1 release-assets/libgomp_linux_x64_${VERSION}.so.1
-          fi
-
-          # Linux ARM64
-          if [ -f artifacts/linux-arm64/libvscode_diff.so ]; then
-            cp artifacts/linux-arm64/libvscode_diff.so release-assets/libvscode_diff_linux_arm64_${VERSION}.so
-          fi
-          if [ -f artifacts/linux-arm64/libgomp.so.1 ]; then
-            cp artifacts/linux-arm64/libgomp.so.1 release-assets/libgomp_linux_arm64_${VERSION}.so.1
-          fi
-
-          # macOS x64
-          if [ -f artifacts/macos-x64/libvscode_diff.dylib ]; then
-            cp artifacts/macos-x64/libvscode_diff.dylib release-assets/libvscode_diff_macos_x64_${VERSION}.dylib
-          fi
-
-          # macOS ARM64
-          if [ -f artifacts/macos-arm64/libvscode_diff.dylib ]; then
-            cp artifacts/macos-arm64/libvscode_diff.dylib release-assets/libvscode_diff_macos_arm64_${VERSION}.dylib
-          fi
-
-          # Windows x64
-          if [ -f artifacts/windows-x64/libvscode_diff.dll ]; then
-            cp artifacts/windows-x64/libvscode_diff.dll release-assets/libvscode_diff_windows_x64_${VERSION}.dll
-          fi
-
-          # Windows ARM64
-          if [ -f artifacts/windows-arm64/libvscode_diff.dll ]; then
-            cp artifacts/windows-arm64/libvscode_diff.dll release-assets/libvscode_diff_windows_arm64_${VERSION}.dll
-          fi
-
-          ls -lah release-assets/
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -185,7 +137,6 @@ jobs:
           name: Release v${{ needs.version-and-tag.outputs.version }}
           draft: false
           prerelease: ${{ needs.version-and-tag.outputs.is_prerelease == 'true' }}
-          files: release-assets/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

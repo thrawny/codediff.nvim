@@ -1,139 +1,190 @@
--- FFI wrapper for compute_diff C library
--- Provides LinesDiff data structure from C to Lua
+-- Diff engine client for codediff.nvim
+-- Talks to a long-lived Bun sidecar (engine/) that computes diffs with
+-- @pierre/diffs, replacing the old libvscode-diff C library. The protocol is
+-- newline-delimited JSON over stdio; results keep the LinesDiff shape the
+-- rest of the plugin has always consumed.
+--
+-- IPC uses vim.uv directly (not jobstart) so responses arrive as fast events
+-- and requests can block with vim.wait(..., fast_only). This keeps
+-- compute_diff synchronous from the caller's point of view, like the old C
+-- FFI call: no scheduled UI callbacks run while a diff is in flight.
 
 local M = {}
-local ffi = require("ffi")
 
--- Get VERSION from version.lua (single source of truth)
-local version = require("codediff.version")
-local VERSION = version.VERSION
+local uv = vim.uv or vim.loop
+local path_util = require("codediff.core.path")
+local installer = require("codediff.core.installer")
 
--- Load the C library with automatic installation
-local lib_ext
-if ffi.os == "Windows" then
-  lib_ext = "dll"
-elseif ffi.os == "OSX" then
-  lib_ext = "dylib"
-else
-  lib_ext = "so"
+local DEFAULT_TIMEOUT_MS = 5000
+-- Extra slack on top of the diff computation budget for process scheduling
+-- and JSON round-tripping of large files.
+local REQUEST_GRACE_MS = 10000
+
+-- Resolve the engine path once at module load, while cwd-relative paths are
+-- still valid (callers may chdir later, e.g. tests in temp git repos).
+local engine_dir = (vim.fn.fnamemodify(path_util.get_plugin_root() .. "/engine", ":p"):gsub("/$", ""))
+
+local state = {
+  handle = nil,
+  stdin = nil,
+  stdout_buffer = "",
+  responses = {},
+  stderr_lines = {},
+  next_id = 0,
+}
+
+local function is_running()
+  return state.handle ~= nil and not state.handle:is_closing()
 end
 
--- Build versioned library filename
-local path_util = require("codediff.core.path")
-local plugin_root = path_util.get_plugin_root()
-local lib_name = string.format("libvscode_diff_%s.%s", VERSION, lib_ext)
-local lib_path = plugin_root .. "/" .. lib_name
+local function stop_engine()
+  if state.stdin and not state.stdin:is_closing() then
+    state.stdin:close()
+  end
+  if state.handle and not state.handle:is_closing() then
+    state.handle:kill("sigterm")
+    state.handle:close()
+  end
+  state.handle = nil
+  state.stdin = nil
+end
 
--- Check if library exists or needs update, if so, install/update it
--- Skip auto-installation if explicitly disabled (e.g., in tests where library is already built)
-local installer = require("codediff.core.installer")
-if not vim.env.VSCODE_DIFF_NO_AUTO_INSTALL and installer.needs_update() then
-  local success, err = installer.install({ silent = false })
-  if not success then
+local function on_stdout_chunk(chunk)
+  state.stdout_buffer = state.stdout_buffer .. chunk
+  while true do
+    local newline = state.stdout_buffer:find("\n", 1, true)
+    if not newline then
+      break
+    end
+    local line = state.stdout_buffer:sub(1, newline - 1)
+    state.stdout_buffer = state.stdout_buffer:sub(newline + 1)
+    if line ~= "" then
+      local ok, decoded = pcall(vim.json.decode, line)
+      if ok and type(decoded) == "table" and decoded.id ~= nil then
+        state.responses[decoded.id] = decoded
+      end
+    end
+  end
+end
+
+local function ensure_engine()
+  if is_running() then
+    return
+  end
+
+  if vim.fn.executable("bun") ~= 1 then
     error(
-      string.format(
-        "libvscode-diff not found and automatic installation failed: %s\n"
-          .. "Troubleshooting:\n"
-          .. "1. Check that curl or wget is installed\n"
-          .. "2. Verify internet connectivity to github.com\n"
-          .. "3. Try manual install: :CodeDiff install!\n"
-          .. "4. Or build from source: run 'make' (Unix) or 'build.cmd' (Windows)\n"
-          .. "5. Download manually from: https://github.com/esmuellert/vscode-diff.nvim/releases",
-        err or "unknown error"
-      )
+      "codediff.nvim requires the Bun runtime for its diff engine.\n"
+        .. "Install it from https://bun.sh (e.g. `curl -fsSL https://bun.sh/install | bash`)\n"
+        .. "and make sure `bun` is on your PATH."
     )
   end
-end
 
--- Try to load the library - fall back to unversioned name for local builds
-local lib
-local load_ok, load_err = pcall(function()
-  lib = ffi.load(lib_path)
-end)
-
-if not load_ok then
-  -- Try fallback to unversioned library (for local builds and tests)
-  local fallback_lib_name = "libvscode_diff." .. lib_ext
-  local fallback_path = plugin_root .. "/" .. fallback_lib_name
-  if vim.fn.filereadable(fallback_path) == 1 then
-    lib = ffi.load(fallback_path)
-  else
-    error(load_err)
+  if not vim.env.VSCODE_DIFF_NO_AUTO_INSTALL and installer.needs_update() then
+    local success, err = installer.install({ silent = false })
+    if not success then
+      error(
+        string.format(
+          "codediff engine dependencies are missing and automatic installation failed: %s\n"
+            .. "Try manual install: run `bun install` in %s\n"
+            .. "or `:CodeDiff install!` inside Neovim.",
+          err or "unknown error",
+          engine_dir
+        )
+      )
+    end
   end
+
+  state.stdout_buffer = ""
+  state.responses = {}
+  state.stderr_lines = {}
+
+  local stdin = uv.new_pipe(false)
+  local stdout = uv.new_pipe(false)
+  local stderr = uv.new_pipe(false)
+
+  local handle, spawn_err = uv.spawn("bun", {
+    args = { "run", engine_dir .. "/src/main.ts" },
+    cwd = engine_dir,
+    stdio = { stdin, stdout, stderr },
+  }, function()
+    -- on exit: mark engine dead so callers can error/restart
+    if state.handle then
+      state.handle:close()
+    end
+    state.handle = nil
+    state.stdin = nil
+  end)
+
+  if not handle then
+    stdin:close()
+    stdout:close()
+    stderr:close()
+    error("codediff.nvim: failed to start the Bun diff engine: " .. tostring(spawn_err))
+  end
+
+  stdout:read_start(function(err, chunk)
+    if err or not chunk then
+      stdout:close()
+      return
+    end
+    on_stdout_chunk(chunk)
+  end)
+
+  stderr:read_start(function(err, chunk)
+    if err or not chunk then
+      stderr:close()
+      return
+    end
+    for line in chunk:gmatch("[^\n]+") do
+      table.insert(state.stderr_lines, line)
+      if #state.stderr_lines > 50 then
+        table.remove(state.stderr_lines, 1)
+      end
+    end
+  end)
+
+  state.handle = handle
+  state.stdin = stdin
 end
 
--- FFI type definitions matching C types.h
-ffi.cdef([[
-  // Basic range types
-  typedef struct {
-    int start_line;  // 1-based, inclusive
-    int end_line;    // 1-based, EXCLUSIVE
-  } LineRange;
+local function request(method, params, timeout_ms)
+  ensure_engine()
 
-  typedef struct {
-    int start_line;  // 1-based
-    int start_col;   // 1-based, inclusive
-    int end_line;    // 1-based
-    int end_col;     // 1-based, EXCLUSIVE
-  } CharRange;
+  state.next_id = state.next_id + 1
+  local id = state.next_id
 
-  // Mapping types
-  typedef struct {
-    CharRange original;
-    CharRange modified;
-  } RangeMapping;
+  local ok_encode, payload = pcall(vim.json.encode, { id = id, method = method, params = params })
+  if not ok_encode then
+    error("codediff.nvim: failed to encode diff request (non-UTF-8 buffer content?): " .. tostring(payload))
+  end
 
-  typedef struct {
-    LineRange original;
-    LineRange modified;
-    RangeMapping* inner_changes;
-    int inner_change_count;
-  } DetailedLineRangeMapping;
+  state.stdin:write(payload .. "\n")
 
-  typedef struct {
-    DetailedLineRangeMapping* mappings;
-    int count;
-    int capacity;
-  } DetailedLineRangeMappingArray;
+  -- fast_only: uv pipe callbacks still fire, but scheduled UI callbacks do
+  -- not. This keeps the call synchronous without re-entrancy into plugin
+  -- state (layout toggles, refreshes) while a diff is computing.
+  vim.wait(timeout_ms, function()
+    return state.responses[id] ~= nil or state.handle == nil
+  end, 3, true)
 
-  typedef struct {
-    LineRange original;
-    LineRange modified;
-  } MovedText;
+  local response = state.responses[id]
+  state.responses[id] = nil
 
-  typedef struct {
-    MovedText* moves;
-    int count;
-    int capacity;
-  } MovedTextArray;
+  if not response then
+    local stderr = table.concat(state.stderr_lines, "\n")
+    if state.handle == nil then
+      error("codediff.nvim: diff engine exited unexpectedly." .. (stderr ~= "" and ("\n" .. stderr) or ""))
+    end
+    error("codediff.nvim: diff engine did not respond within " .. timeout_ms .. "ms")
+  end
 
-  // Main diff result
-  typedef struct {
-    DetailedLineRangeMappingArray changes;
-    MovedTextArray moves;
-    bool hit_timeout;
-  } LinesDiff;
+  if response.error ~= nil and response.error ~= vim.NIL then
+    error("codediff.nvim: diff engine error: " .. tostring(response.error))
+  end
 
-  // Options
-  typedef struct {
-    bool ignore_trim_whitespace;
-    int max_computation_time_ms;
-    bool compute_moves;
-    bool extend_to_subwords;
-  } DiffOptions;
-
-  // API functions
-  LinesDiff* compute_diff(
-    const char** original_lines,
-    int original_count,
-    const char** modified_lines,
-    int modified_count,
-    const DiffOptions* options
-  );
-
-  void free_lines_diff(LinesDiff* diff);
-  const char* get_version(void);
-]])
+  return response.result
+end
 
 ---@class DiffOptions
 ---@field ignore_trim_whitespace boolean
@@ -141,129 +192,48 @@ ffi.cdef([[
 ---@field compute_moves boolean
 ---@field extend_to_subwords boolean
 
--- Convert Lua string array to C string array
-local function lua_to_c_strings(lines)
-  local count = #lines
-  local c_array = ffi.new("const char*[?]", count)
-
-  for i = 1, count do
-    c_array[i - 1] = lines[i]
-  end
-
-  return c_array, count
-end
-
--- Convert C CharRange to Lua table
-local function char_range_to_lua(c_range)
-  return {
-    start_line = c_range.start_line,
-    start_col = c_range.start_col,
-    end_line = c_range.end_line,
-    end_col = c_range.end_col,
-  }
-end
-
--- Convert C LineRange to Lua table
-local function line_range_to_lua(c_range)
-  return {
-    start_line = c_range.start_line,
-    end_line = c_range.end_line,
-  }
-end
-
--- Convert C RangeMapping to Lua table
-local function range_mapping_to_lua(c_mapping)
-  return {
-    original = char_range_to_lua(c_mapping.original),
-    modified = char_range_to_lua(c_mapping.modified),
-  }
-end
-
--- Convert C DetailedLineRangeMapping to Lua table
-local function detailed_mapping_to_lua(c_mapping)
-  local inner_changes = {}
-
-  if c_mapping.inner_changes ~= nil then
-    for i = 0, c_mapping.inner_change_count - 1 do
-      table.insert(inner_changes, range_mapping_to_lua(c_mapping.inner_changes[i]))
-    end
-  end
-
-  return {
-    original = line_range_to_lua(c_mapping.original),
-    modified = line_range_to_lua(c_mapping.modified),
-    inner_changes = inner_changes,
-  }
-end
-
--- Convert C MovedText to Lua table
-local function moved_text_to_lua(c_moved)
-  return {
-    original = line_range_to_lua(c_moved.original),
-    modified = line_range_to_lua(c_moved.modified),
-  }
-end
-
--- Convert C LinesDiff to Lua table
-local function lines_diff_to_lua(c_diff)
-  if c_diff == nil then
-    return nil
-  end
-
-  local changes = {}
-  for i = 0, c_diff.changes.count - 1 do
-    table.insert(changes, detailed_mapping_to_lua(c_diff.changes.mappings[i]))
-  end
-
-  local moves = {}
-  for i = 0, c_diff.moves.count - 1 do
-    table.insert(moves, moved_text_to_lua(c_diff.moves.moves[i]))
-  end
-
-  return {
-    changes = changes,
-    moves = moves,
-    hit_timeout = c_diff.hit_timeout,
-  }
-end
-
 -- Main API: Compute diff between two sets of lines
--- Returns Lua table representation of LinesDiff
+-- Returns Lua table representation of LinesDiff:
+-- { changes = { { original = LineRange, modified = LineRange, inner_changes = {...} } },
+--   moves = { { original = LineRange, modified = LineRange } },
+--   hit_timeout = boolean }
 function M.compute_diff(original_lines, modified_lines, options)
   options = options or {}
+  local engine_options = {
+    ignore_trim_whitespace = options.ignore_trim_whitespace or false,
+    max_computation_time_ms = options.max_computation_time_ms or DEFAULT_TIMEOUT_MS,
+    compute_moves = options.compute_moves or false,
+    extend_to_subwords = options.extend_to_subwords or false,
+  }
 
-  -- Convert Lua lines to C arrays
-  local c_orig, orig_count = lua_to_c_strings(original_lines)
-  local c_mod, mod_count = lua_to_c_strings(modified_lines)
+  local result = request("computeDiff", {
+    original = original_lines,
+    modified = modified_lines,
+    options = engine_options,
+  }, engine_options.max_computation_time_ms + REQUEST_GRACE_MS)
 
-  -- Create options struct
-  ---@type DiffOptions
-  ---@diagnostic disable-next-line: assign-type-mismatch
-  local c_options = ffi.new("DiffOptions")
-  c_options.ignore_trim_whitespace = options.ignore_trim_whitespace or false
-  c_options.max_computation_time_ms = options.max_computation_time_ms or 5000
-  c_options.compute_moves = options.compute_moves or false
-  c_options.extend_to_subwords = options.extend_to_subwords or false
-
-  -- Call C function
-  local c_diff = lib.compute_diff(c_orig, orig_count, c_mod, mod_count, c_options)
-
-  if c_diff == nil then
-    error("compute_diff returned NULL")
+  -- Normalize for consumers that index these unconditionally.
+  result.changes = result.changes or {}
+  result.moves = result.moves or {}
+  for _, change in ipairs(result.changes) do
+    change.inner_changes = change.inner_changes or {}
+  end
+  if type(result.hit_timeout) ~= "boolean" then
+    result.hit_timeout = false
   end
 
-  -- Convert to Lua table
-  local lua_diff = lines_diff_to_lua(c_diff)
-
-  -- Free C memory
-  lib.free_lines_diff(c_diff)
-
-  return lua_diff
+  return result
 end
 
--- Get library version
+-- Get engine version
 function M.get_version()
-  return ffi.string(lib.get_version())
+  local result = request("version", nil, DEFAULT_TIMEOUT_MS)
+  return result.version
+end
+
+-- Stop the engine process (mainly for tests)
+function M.shutdown()
+  stop_engine()
 end
 
 return M

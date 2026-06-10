@@ -41,8 +41,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 - **Inline (unified) diff view** — single-window layout with deleted lines as virtual overlays, with treesitter syntax highlighting
 - **Toggle layout** — switch between side-by-side and inline layout at runtime with `t`
 - **Git integration**: Compare between any git revision (HEAD, commits, branches, tags)
-- **Same implementation as VSCode's diff engine**, providing identical visual highlighting for most scenarios
-- **Fast C-based diff computation** using FFI with **multi-core parallelization** (OpenMP)
+- **Pierre-based diff engine** — the same [@pierre/diffs](https://github.com/pierredotco/diffs) core that powers [Hunk](https://github.com/modem-dev/hunk), running in a long-lived Bun sidecar process
 - **Async git operations** - non-blocking file retrieval from git
 - **Moved code detection** — identifies blocks of code that moved within a file, with visual indicators (highlights, signs, annotations) matching VSCode's experimental `showMoves` feature (opt-in)
 
@@ -50,10 +49,11 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 
 ### Prerequisites
 
-- Neovim >= 0.7.0 (for Lua FFI support; 0.10+ recommended for vim.system)
+- Neovim >= 0.10
+- [Bun](https://bun.sh) runtime (`curl -fsSL https://bun.sh/install | bash`)
 - Git (for git diff features)
-- `curl` or `wget` (for automatic binary download)
-**No compiler required!** The plugin automatically downloads pre-built binaries from GitHub releases.
+
+**No compiler required!** The plugin installs its engine dependencies automatically with `bun install` on first use.
 
 ### Using lazy.nvim
 
@@ -275,37 +275,17 @@ git clone https://github.com/esmuellert/codediff.nvim ~/.local/share/nvim/codedi
 vim.opt.rtp:append("~/.local/share/nvim/codediff.nvim")
 ```
 
-3. **Install the C library:**
+3. **Install the diff engine dependencies:**
 
-The plugin requires a C library binary in the plugin root directory. The plugin auto-detects these filenames:
-- `libvscode_diff.so` or `libvscode_diff_<version>.so` (Linux/BSD)
-- `libvscode_diff.dylib` or `libvscode_diff_<version>.dylib` (macOS)
-- `libvscode_diff.dll` or `libvscode_diff_<version>.dll` (Windows)
+The plugin's diff engine is a Bun/TypeScript sidecar in `engine/`. On first use
+the plugin runs `bun install` there automatically; to do it manually:
 
-**Option A: Download from GitHub releases** (recommended)
-
-Download the appropriate binary from the [GitHub releases page](https://github.com/esmuellert/codediff.nvim/releases) and place it in the plugin root directory. Rename it to match the expected format: `libvscode_diff.so`/`.dylib`/`.dll` or `libvscode_diff_<version>.so`/`.dylib`/`.dll`. **Linux users**: If your system lacks OpenMP, also download `libgomp_linux_{arch}_{version}.so.1` and rename it to `libgomp.so.1` in the same directory.
-
-**Option B: Build from source**
-
-Build requirements: C compiler (GCC/Clang/MSVC/MinGW) or CMake 3.15+
-
-Using build scripts (no CMake required):
 ```bash
-# Linux/macOS/BSD
-./build.sh
-
-# Windows
-build.cmd
+cd ~/.local/share/nvim/codediff.nvim/engine
+bun install
 ```
 
-Or using CMake:
-```bash
-cmake -B build
-cmake --build build
-```
-
-Both methods automatically place the library in the plugin root directory.
+Or from inside Neovim: `:CodeDiff install`
 
 ## Usage
 
@@ -587,16 +567,16 @@ vim.api.nvim_create_autocmd("User", {
 
 ### Components
 
-- **C Module** (`libvscode-diff/`): Fast diff computation and render plan generation
-  - Myers diff algorithm
-  - Character-level refinement for highlighting
-  - Matches VSCode's `rangeMapping.ts` data structures
+- **Diff Engine** (`engine/`): Bun/TypeScript sidecar built on [@pierre/diffs](https://github.com/pierredotco/diffs)
+  - Hunk/Pierre diff core with character-level refinement for highlighting
+  - Block-level moved-code detection
+  - Long-lived process speaking newline-delimited JSON over stdio
 
-- **Lua FFI Layer** (`lua/vscode-diff/diff.lua`): Bridge between C and Lua
-  - FFI declarations matching C structs
-  - Type conversions between C and Lua
+- **Lua Engine Client** (`lua/codediff/core/diff.lua`): Bridge between the engine and Lua
+  - Spawns one engine per Neovim instance and keeps it alive
+  - Returns the same `LinesDiff` structure (changes, inner char ranges, moves) the renderer has always consumed
 
-- **Render Module** (`lua/vscode-diff/render/`): Neovim buffer rendering
+- **Render Module** (`lua/codediff/ui/`): Neovim buffer rendering
   - VSCode-style highlight groups
   - Virtual line insertion for alignment
   - Side-by-side window management
@@ -686,19 +666,19 @@ highlights = {
 ### Building
 
 ```bash
-make clean && make
+make build             # bun install in engine/
 ```
 
 ### Testing
 
 Run all tests:
 ```bash
-make test              # Run all tests (C + Lua integration)
+make test              # Run all tests (engine + Lua integration)
 ```
 
 Run specific test suites:
 ```bash
-make test-c            # C unit tests only
+make test-engine       # Engine (bun) unit tests only
 make test-lua          # Lua integration tests only
 ```
 
@@ -708,18 +688,19 @@ For more details on the test structure, see [`tests/README.md`](tests/README.md)
 
 ```
 codediff.nvim/
-├── libvscode-diff/        # C diff engine
-│   ├── src/               # C implementation
-│   ├── include/           # C headers
-│   └── tests/             # C unit tests
+├── engine/                # Bun/TypeScript diff engine (@pierre/diffs)
+│   └── src/
+│       ├── main.ts        # NDJSON-over-stdio server
+│       └── linesDiff.ts   # LinesDiff computation
 ├── lua/
 │   ├── codediff/          # Main Lua modules
 │   │   ├── init.lua       # Main API
 │   │   ├── config.lua     # Configuration
-│   │   ├── diff.lua       # FFI interface
-│   │   ├── git.lua        # Git operations
 │   │   ├── commands.lua   # Command handlers
-│   │   ├── installer.lua  # Binary installer
+│   │   ├── core/
+│   │   │   ├── diff.lua       # Engine client
+│   │   │   ├── git.lua        # Git operations
+│   │   │   └── installer.lua  # Engine bootstrap
 │   │   └── ui/            # UI components
 │   │       ├── core.lua       # Diff rendering
 │   │       ├── highlights.lua # Highlight setup
@@ -741,7 +722,7 @@ codediff.nvim/
 
 ### Current Status: Complete ✅
 
-- [x] C-based diff computation with VSCode-identical algorithm
+- [x] Pierre-based diff computation in a Bun sidecar (same diff core as Hunk)
 - [x] Two-tier highlighting (line + character level)
 - [x] Side-by-side view with synchronized scrolling
 - [x] Git integration (async operations, status explorer, revision comparison)
@@ -749,7 +730,7 @@ codediff.nvim/
 - [x] Syntax highlighting preservation (LSP semantic tokens + TreeSitter)
 - [x] Read-only buffers with virtual filler lines for alignment
 - [x] Flexible highlight configuration (colorscheme-aware)
-- [x] Integration tests (C + Lua with plenary.nvim)
+- [x] Integration tests (engine + Lua with plenary.nvim)
 - [x] File history mode (per-commit review, similar to DiffviewFileHistory)
 
 ### Future Enhancements
@@ -773,7 +754,7 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please ensure:
-1. C tests pass (`make test`)
-2. Lua tests pass
+1. Engine tests pass (`make test-engine`)
+2. Lua tests pass (`make test-lua`)
 3. Code follows existing style
 4. Updates to README if adding features

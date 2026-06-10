@@ -1,19 +1,7 @@
-# Build artifacts
-*.o
-*.so
-*.dylib
-*.dll
-*.obj
-test_diff_core
-**/build
-*.exe
-diff
+# Engine dependencies
+node_modules/
 
-# Bundled runtime dependencies (downloaded by installer)
-libgomp.so.1
-
-# Generated VSCode diff bundle (can be regenerated with ./build-vscode-diff.sh)
-vscode-diff.mjs
+# Generated VSCode merge bundle (can be regenerated with ./scripts/build-vscode-merge.sh)
 vscode-merge.mjs
 example
 example/
@@ -28,5 +16,3 @@ example/
 Thumbs.db
 .cache/
 tests/plenary.nvim
-compile_commands.json
-build/include/version.h

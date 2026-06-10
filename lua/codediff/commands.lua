@@ -776,13 +776,13 @@ function M.vscode_diff(opts)
     local installer = require("codediff.core.installer")
 
     if force then
-      vim.notify("Reinstalling libvscode-diff...", vim.log.levels.INFO)
+      vim.notify("Reinstalling codediff engine...", vim.log.levels.INFO)
     end
 
     local success, err = installer.install({ force = force, silent = false })
 
     if success then
-      vim.notify("libvscode-diff installation successful!", vim.log.levels.INFO)
+      vim.notify("codediff engine installation successful!", vim.log.levels.INFO)
     else
       vim.notify("Installation failed: " .. (err or "unknown error"), vim.log.levels.ERROR)
     end

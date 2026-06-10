@@ -4,15 +4,13 @@ Integration tests for codediff.nvim using [plenary.nvim](https://github.com/nvim
 
 ## Test Coverage
 
-### ✅ FFI Integration (ffi_integration_spec.lua)
-C ↔ Lua boundary validation:
+### ✅ Engine Integration (core/engine_integration_spec.lua)
+Bun engine ↔ Lua boundary validation:
 - Data structure conversion
-- Memory management (no leaks)
+- Repeated calls through the long-lived sidecar
 - Edge cases (empty diffs, large files)
 
-**10 tests**
-
-### ✅ Git Integration (git_integration_spec.lua)
+### ✅ Git Integration (core/git_integration_spec.lua)
 Git operations and async handling:
 - Repository detection
 - Async callbacks
@@ -20,34 +18,20 @@ Git operations and async handling:
 - Path calculation
 - LRU cache validation
 
-**9 tests**
-
-### ✅ Installer (installer_spec.lua)
-Automatic binary installation and version management:
+### ✅ Installer (core/installer_spec.lua)
+Bun engine bootstrap and dependency management:
 - Module API validation
 - VERSION loading from version.lua
-- Library path construction
-- Version detection from filenames
+- Engine path construction
 - Update necessity logic
-- Platform-specific extension handling
 
-**10 tests**
-
-### ✅ Auto-scroll (autoscroll_spec.lua)
-Diff view scrolling behavior:
-- Scroll to first change
-- Window centering
-- Scroll sync activation
-
-**5 tests**
-
-### ✅ Semantic Tokens (render/semantic_tokens_spec.lua)
+### ✅ Semantic Tokens (ui/semantic_tokens_spec.lua)
 LSP integration and rendering:
 - Module compatibility checks
 - Virtual file URL handling
 - Namespace management
 
-**12 tests**
+Plus diff behavior specs (moves, whitespace, timeout) in `core/` and UI specs in `ui/`.
 
 ## Running Tests
 
@@ -59,20 +43,21 @@ LSP integration and rendering:
 ### Individual spec:
 ```bash
 nvim --headless --noplugin -u tests/init.lua \
-  -c "lua require('plenary.test_harness').test_directory('tests/ffi_integration_spec.lua')"
+  -c "lua require('plenary.test_harness').test_file('tests/core/engine_integration_spec.lua', { minimal_init = 'tests/init.lua' })"
+```
+
+### Engine unit tests:
+```bash
+cd engine && bun test
 ```
 
 ## Test Philosophy
 
-Focus on **integration points** that C tests cannot validate:
-- FFI boundary integrity
+Focus on **integration points**:
+- Engine sidecar boundary integrity
 - Lua async operations
 - System integration (git)
 - UI behavior (scrolling, rendering)
 
-**Total: 46 tests** across 5 spec files using industry-standard plenary.nvim framework.
-
-## What's NOT Covered
-
-❌ **Diff algorithm** - Validated by C tests in `c-diff-core/tests/` (3,490 lines)
-❌ **Visual correctness** - Manual testing required
+Diff algorithm internals are validated by the engine's own bun tests in
+`engine/src/*.test.ts`.

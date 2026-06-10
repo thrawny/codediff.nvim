@@ -23,15 +23,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 'lts/*'
-
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake
+          bun-version: latest
 
       - name: Setup Neovim
         uses: ./.github/actions/setup-neovim
@@ -39,8 +34,9 @@ jobs:
       # Note: plenary.nvim and nui.nvim are installed on-demand by tests/init.lua
       # This keeps behavior consistent with the main CI pipeline
 
-      - name: Build native library
-        run: make build
+      - name: Install engine dependencies
+        run: bun install
+        working-directory: engine
 
       - name: Verify Neovim can load the plugin
         run: |
