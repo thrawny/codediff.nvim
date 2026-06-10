@@ -343,7 +343,10 @@ function computeMoves(
       usedMod.add(candidate.modStart + t);
     }
     moves.push({
-      original: { start_line: candidate.origStart, end_line: candidate.origStart + candidate.length },
+      original: {
+        start_line: candidate.origStart,
+        end_line: candidate.origStart + candidate.length,
+      },
       modified: { start_line: candidate.modStart, end_line: candidate.modStart + candidate.length },
     });
   }

@@ -22,10 +22,12 @@ typecheck:
 
 lint:
 	@stylua --check lua
+	@cd engine && bun run lint && bun run format:check
 
 format:
 	@stylua lua
-	@echo "✓ Formatted lua/"
+	@cd engine && bun run format
+	@echo "✓ Formatted lua/ and engine/"
 
 clean:
 	@rm -rf engine/node_modules

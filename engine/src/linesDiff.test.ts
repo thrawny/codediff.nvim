@@ -155,14 +155,24 @@ describe("computeLinesDiff", () => {
 
   it("keeps inner change positions within the mapping bounds", () => {
     const orig = ["function a()", "  local x = compute(1, 2)", "  return x + 1", "end"];
-    const mod = ["function a()", "  local y = compute(3, 4)", "  local z = y * 2", "  return z + 1", "end"];
+    const mod = [
+      "function a()",
+      "  local y = compute(3, 4)",
+      "  local z = y * 2",
+      "  return z + 1",
+      "end",
+    ];
     const result = computeLinesDiff(orig, mod);
     for (const change of result.changes) {
       for (const inner of change.inner_changes) {
         expect(inner.original.start_line).toBeGreaterThanOrEqual(change.original.start_line);
-        expect(inner.original.end_line).toBeLessThanOrEqual(Math.max(change.original.end_line, change.original.start_line));
+        expect(inner.original.end_line).toBeLessThanOrEqual(
+          Math.max(change.original.end_line, change.original.start_line),
+        );
         expect(inner.modified.start_line).toBeGreaterThanOrEqual(change.modified.start_line);
-        expect(inner.modified.end_line).toBeLessThanOrEqual(Math.max(change.modified.end_line, change.modified.start_line));
+        expect(inner.modified.end_line).toBeLessThanOrEqual(
+          Math.max(change.modified.end_line, change.modified.start_line),
+        );
       }
     }
   });

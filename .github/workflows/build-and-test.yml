@@ -35,6 +35,10 @@ jobs:
         run: bun run typecheck
         working-directory: engine
 
+      - name: Lint engine
+        run: bun run lint && bun run format:check
+        working-directory: engine
+
       - name: Run engine tests
         run: bun test
         working-directory: engine
