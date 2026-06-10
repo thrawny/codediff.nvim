@@ -24,23 +24,23 @@ Format: `MAJOR.MINOR.PATCH`
 
 ```bash
 # Show current version
-make version
+cat VERSION
 
 # Bump patch version (bug fixes)
-make bump-patch
+just bump-patch
 
 # Bump minor version (new features)
-make bump-minor
+just bump-minor
 
 # Bump major version (breaking changes)
-make bump-major
+just bump-major
 ```
 
 ### Manual Workflow
 
 ```bash
 # 1. Bump version
-make bump-minor
+just bump-minor
 
 # 2. Commit and tag
 git add VERSION
@@ -55,7 +55,7 @@ git push && git push --tags
 
 ```bash
 # After making changes
-make bump-minor && \
+just bump-minor && \
   git add VERSION && \
   git commit -m "Bump version to $(cat VERSION)" && \
   git tag v$(cat VERSION) && \
@@ -76,9 +76,9 @@ git commit -m "Add new feature"
 
 Choose the appropriate level:
 ```bash
-make bump-patch   # Bug fixes only
-make bump-minor   # New features
-make bump-major   # Breaking changes
+just bump-patch   # Bug fixes only
+just bump-minor   # New features
+just bump-major   # Breaking changes
 ```
 
 ### 3. Release
@@ -101,7 +101,7 @@ git push origin --tags
 git tag -l
 
 # Check version
-make version
+cat VERSION
 ```
 
 ## How It Works
@@ -133,7 +133,7 @@ ES Module script (`scripts/bump_version.mjs`):
 git commit -m "Fix column offset calculation"
 
 # Bump patch version (0.3.0 → 0.3.1)
-make bump-patch
+just bump-patch
 
 # Release
 git add VERSION
@@ -149,7 +149,7 @@ git push && git push --tags
 git commit -m "Add async git diff support"
 
 # Bump minor version (0.3.1 → 0.4.0)
-make bump-minor
+just bump-minor
 
 # Release
 git add VERSION
@@ -165,7 +165,7 @@ git push && git push --tags
 git commit -m "Refactor: Change API structure"
 
 # Bump major version (0.4.0 → 1.0.0)
-make bump-major
+just bump-major
 
 # Release
 git add VERSION

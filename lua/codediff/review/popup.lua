@@ -70,10 +70,13 @@ function M.open(initial_type, initial_text, callback)
   if cfg.popup.show_type_selector == false then
     layout = Layout({ position = "50%", size = { width = 60, height = 7 } }, Layout.Box({ Layout.Box(text_popup, { size = 7 }) }, { dir = "col" }))
   else
-    layout = Layout({ position = "50%", size = { width = 60, height = 10 } }, Layout.Box({
-      Layout.Box(type_popup, { size = 3 }),
-      Layout.Box(text_popup, { size = 7 }),
-    }, { dir = "col" }))
+    layout = Layout(
+      { position = "50%", size = { width = 60, height = 10 } },
+      Layout.Box({
+        Layout.Box(type_popup, { size = 3 }),
+        Layout.Box(text_popup, { size = 7 }),
+      }, { dir = "col" })
+    )
   end
 
   local function render_types()

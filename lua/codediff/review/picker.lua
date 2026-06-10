@@ -246,7 +246,9 @@ function M.open(callback)
 
   popup:map("n", "<Space>", toggle_range, { noremap = true, nowait = true })
   popup:map("n", "r", select_none, { noremap = true, nowait = true })
-  popup:map("n", "<CR>", function() confirm_selection(callback) end, { noremap = true, nowait = true })
+  popup:map("n", "<CR>", function()
+    confirm_selection(callback)
+  end, { noremap = true, nowait = true })
   popup:map("n", "q", close_picker, { noremap = true, nowait = true })
   popup:map("n", "<Esc>", close_picker, { noremap = true, nowait = true })
 end

@@ -168,8 +168,12 @@ function M.align_buffers(orig_buf, mod_buf, orig_file, mod_file)
   local old_map = build_height_map(orig_file, "old")
   local new_map = build_height_map(mod_file, "new")
   local all_lines = {}
-  for line in pairs(old_map) do all_lines[line] = true end
-  for line in pairs(new_map) do all_lines[line] = true end
+  for line in pairs(old_map) do
+    all_lines[line] = true
+  end
+  for line in pairs(new_map) do
+    all_lines[line] = true
+  end
 
   for line in pairs(all_lines) do
     local old_h = old_map[line] or 0

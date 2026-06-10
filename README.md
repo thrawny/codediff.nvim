@@ -666,20 +666,20 @@ highlights = {
 ### Building
 
 ```bash
-make build             # bun install in engine/
+just build             # bun install in engine/
 ```
 
 ### Testing
 
 Run all tests:
 ```bash
-make test              # Run all tests (engine + Lua integration)
+just test              # Run all tests (engine + Lua integration)
 ```
 
 Run specific test suites:
 ```bash
-make test-engine       # Engine (bun) unit tests only
-make test-lua          # Lua integration tests only
+just test-engine       # Engine (bun) unit tests only
+just test-lua          # Lua integration tests only
 ```
 
 For more details on the test structure, see [`tests/README.md`](tests/README.md).
@@ -714,7 +714,7 @@ codediff.nvim/
 │   └── codediff.lua       # Auto-loaded on startup
 ├── tests/                 # Test suite (plenary.nvim)
 ├── docs/                  # Documentation and development history
-├── Makefile               # Build automation
+├── Justfile               # Task runner recipes
 └── README.md
 ```
 
@@ -754,7 +754,7 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please ensure:
-1. Engine tests pass (`make test-engine`)
-2. Lua tests pass (`make test-lua`)
+1. Engine tests pass (`just test-engine`)
+2. Lua tests pass (`just test-lua`)
 3. Code follows existing style
 4. Updates to README if adding features

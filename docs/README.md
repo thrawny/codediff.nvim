@@ -9,7 +9,7 @@
 
 - **[VERSION_MANAGEMENT.md](VERSION_MANAGEMENT.md)** — Semantic versioning workflow and automated version bumping
 
-The diff engine lives in `engine/` and runs on [Bun](https://bun.sh); `make build` installs its dependencies.
+The diff engine lives in `engine/` and runs on [Bun](https://bun.sh); `just build` installs its dependencies.
 
 ## Algorithm Internals
 

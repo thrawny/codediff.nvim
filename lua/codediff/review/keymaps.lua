@@ -27,14 +27,20 @@ end
 
 local function format_key(key)
   local inner = key:match("^<(.+)>$")
-  if not inner then return key end
-  if inner:lower() == "leader" or inner:lower() == "localleader" then return key end
+  if not inner then
+    return key
+  end
+  if inner:lower() == "leader" or inner:lower() == "localleader" then
+    return key
+  end
   inner = inner:gsub("^C%-", "Ctrl-")
   return inner
 end
 
 local function add_section(entries, title, lines, max_key_width)
-  if #entries == 0 then return end
+  if #entries == 0 then
+    return
+  end
   table.insert(lines, "")
   table.insert(lines, "  " .. title)
   for _, entry in ipairs(entries) do
@@ -65,7 +71,9 @@ local function show_help()
 
   local function entry(key_name, desc, tbl)
     local key = km[key_name]
-    if not is_enabled(key) then return end
+    if not is_enabled(key) then
+      return
+    end
     table.insert(tbl, { key = format_key(key), desc = desc })
   end
 
@@ -168,12 +176,18 @@ local function set_buffer_keymaps(bufnr)
 
   local function jump_to_first_hunk()
     local ok, lifecycle = pcall(require, "codediff.ui.lifecycle")
-    if not ok then return end
+    if not ok then
+      return
+    end
     local tabpage = vim.api.nvim_get_current_tabpage()
     local session = lifecycle.get_session(tabpage)
-    if not session or not session.stored_diff_result then return end
+    if not session or not session.stored_diff_result then
+      return
+    end
     local diff_result = session.stored_diff_result
-    if #diff_result.changes == 0 then return end
+    if #diff_result.changes == 0 then
+      return
+    end
 
     local orig_buf, mod_buf = lifecycle.get_buffers(tabpage)
     local current_buf = vim.api.nvim_get_current_buf()
@@ -186,7 +200,9 @@ local function set_buffer_keymaps(bufnr)
   local function navigate(direction)
     return function()
       local ok, lifecycle = pcall(require, "codediff.ui.lifecycle")
-      if not ok then return end
+      if not ok then
+        return
+      end
       local tabpage = vim.api.nvim_get_current_tabpage()
       local explorer_obj = lifecycle.get_explorer(tabpage)
       if explorer_obj then
@@ -197,46 +213,100 @@ local function set_buffer_keymaps(bufnr)
   end
 
   if readonly then
-    set(km.readonly_add, function() comments.add_with_menu() end, "Add comment (pick type)")
-    set_visual(km.readonly_add, function() comments.add_for_range() end, "Add comment for selection")
-    set(km.readonly_add_file, function() comments.file_comment() end, "File comment")
-    set(km.readonly_delete, function() comments.delete_at_cursor() end, "Delete comment")
-    set(km.readonly_edit, function() comments.edit_at_cursor() end, "Edit comment")
-    set(km.list_comments, function() comments.list() end, "List all comments")
-    set(km.export_clipboard, function() export.to_clipboard() end, "Export to clipboard")
-    set(km.send_sidekick, function() export.to_sidekick() end, "Send to sidekick")
-    set(km.clear_comments, function() require("codediff.review").clear() end, "Clear all comments")
-    set(km.next_comment, function() comments.goto_next() end, "Next comment")
-    set(km.prev_comment, function() comments.goto_prev() end, "Previous comment")
+    set(km.readonly_add, function()
+      comments.add_with_menu()
+    end, "Add comment (pick type)")
+    set_visual(km.readonly_add, function()
+      comments.add_for_range()
+    end, "Add comment for selection")
+    set(km.readonly_add_file, function()
+      comments.file_comment()
+    end, "File comment")
+    set(km.readonly_delete, function()
+      comments.delete_at_cursor()
+    end, "Delete comment")
+    set(km.readonly_edit, function()
+      comments.edit_at_cursor()
+    end, "Edit comment")
+    set(km.list_comments, function()
+      comments.list()
+    end, "List all comments")
+    set(km.export_clipboard, function()
+      export.to_clipboard()
+    end, "Export to clipboard")
+    set(km.send_sidekick, function()
+      export.to_sidekick()
+    end, "Send to sidekick")
+    set(km.clear_comments, function()
+      require("codediff.review").clear()
+    end, "Clear all comments")
+    set(km.next_comment, function()
+      comments.goto_next()
+    end, "Next comment")
+    set(km.prev_comment, function()
+      comments.goto_prev()
+    end, "Previous comment")
   else
-    set(km.add_comment, function() comments.add_with_menu() end, "Add comment (pick type)")
-    set_visual(km.add_comment, function() comments.add_for_range() end, "Add comment for selection")
-    set(km.add_note, function() comments.add_at_cursor("note") end, "Add note")
-    set_visual(km.add_note, function() comments.add_for_range("note") end, "Add note for selection")
-    set(km.add_suggestion, function() comments.add_at_cursor("suggestion") end, "Add suggestion")
-    set_visual(km.add_suggestion, function() comments.add_for_range("suggestion") end, "Add suggestion for selection")
-    set(km.add_issue, function() comments.add_at_cursor("issue") end, "Add issue")
-    set_visual(km.add_issue, function() comments.add_for_range("issue") end, "Add issue for selection")
-    set(km.add_praise, function() comments.add_at_cursor("praise") end, "Add praise")
-    set_visual(km.add_praise, function() comments.add_for_range("praise") end, "Add praise for selection")
-    set(km.add_file_comment, function() comments.file_comment() end, "File comment")
-    set(km.delete_comment, function() comments.delete_at_cursor() end, "Delete comment")
-    set(km.edit_comment, function() comments.edit_at_cursor() end, "Edit comment")
+    set(km.add_comment, function()
+      comments.add_with_menu()
+    end, "Add comment (pick type)")
+    set_visual(km.add_comment, function()
+      comments.add_for_range()
+    end, "Add comment for selection")
+    set(km.add_note, function()
+      comments.add_at_cursor("note")
+    end, "Add note")
+    set_visual(km.add_note, function()
+      comments.add_for_range("note")
+    end, "Add note for selection")
+    set(km.add_suggestion, function()
+      comments.add_at_cursor("suggestion")
+    end, "Add suggestion")
+    set_visual(km.add_suggestion, function()
+      comments.add_for_range("suggestion")
+    end, "Add suggestion for selection")
+    set(km.add_issue, function()
+      comments.add_at_cursor("issue")
+    end, "Add issue")
+    set_visual(km.add_issue, function()
+      comments.add_for_range("issue")
+    end, "Add issue for selection")
+    set(km.add_praise, function()
+      comments.add_at_cursor("praise")
+    end, "Add praise")
+    set_visual(km.add_praise, function()
+      comments.add_for_range("praise")
+    end, "Add praise for selection")
+    set(km.add_file_comment, function()
+      comments.file_comment()
+    end, "File comment")
+    set(km.delete_comment, function()
+      comments.delete_at_cursor()
+    end, "Delete comment")
+    set(km.edit_comment, function()
+      comments.edit_at_cursor()
+    end, "Edit comment")
   end
 
   set(km.next_file, navigate("next"), "Next file")
   set(km.prev_file, navigate("prev"), "Previous file")
   set(km.toggle_file_panel, function()
     local ok, lifecycle = pcall(require, "codediff.ui.lifecycle")
-    if not ok then return end
+    if not ok then
+      return
+    end
     local tabpage = vim.api.nvim_get_current_tabpage()
     local explorer_obj = lifecycle.get_explorer(tabpage)
     if explorer_obj then
       require("codediff.ui.explorer").toggle_visibility(explorer_obj)
     end
   end, "Toggle file panel")
-  set(km.close, function() require("codediff.review").close() end, "Close")
-  set(km.toggle_readonly, function() require("codediff.review").toggle_readonly() end, "Toggle readonly mode")
+  set(km.close, function()
+    require("codediff.review").close()
+  end, "Close")
+  set(km.toggle_readonly, function()
+    require("codediff.review").toggle_readonly()
+  end, "Toggle readonly mode")
   set(km.show_help, show_help, "Show help")
 
   keymapped_buffers[bufnr] = mapped
@@ -266,8 +336,12 @@ function M.setup_keymaps(tabpage)
   vim.api.nvim_create_autocmd("BufEnter", {
     group = augroup,
     callback = function()
-      if vim.api.nvim_get_current_tabpage() ~= tabpage then return end
-      if not lifecycle.get_session(tabpage) then return end
+      if vim.api.nvim_get_current_tabpage() ~= tabpage then
+        return
+      end
+      if not lifecycle.get_session(tabpage) then
+        return
+      end
       set_buffer_keymaps(vim.api.nvim_get_current_buf())
     end,
   })
