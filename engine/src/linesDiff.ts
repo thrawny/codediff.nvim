@@ -6,7 +6,11 @@
 // line ranges are 1-based with exclusive ends, char columns are 1-based
 // UTF-16 columns (the Lua renderer converts them to byte columns).
 
-import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs";
+import {
+  parseDiffFromFile,
+  type CreatePatchOptionsNonabortable,
+  type FileDiffMetadata,
+} from "@pierre/diffs";
 import { diffWordsWithSpace } from "diff";
 
 export interface LineRange {
@@ -380,11 +384,37 @@ export function computeLinesDiff(
   // trailing one, jsdiff treats the last line as distinct from its
   // mid-file occurrences and merges hunks that should stay separate.
   const toContents = (lines: string[]) => (lines.length > 0 ? `${lines.join("\n")}\n` : "");
-  const metadata: FileDiffMetadata = parseDiffFromFile(
-    { name: "original", contents: toContents(originalLines) },
-    { name: "modified", contents: toContents(modifiedLines) },
-    { context: 0, ignoreWhitespace: ignoreTrimWhitespace },
-  );
+
+  // The timeout passes through to jsdiff's line-level Myers. On expiry it
+  // aborts and parseDiffFromFile throws; degrade to a single whole-file
+  // change like vscode's trivial-diff fallback rather than hanging.
+  let metadata: FileDiffMetadata;
+  try {
+    // Pierre's signature only admits non-abortable jsdiff options, but
+    // `timeout` passes through to diffLines at runtime; on expiry the patch
+    // comes back undefined and parseDiffFromFile throws.
+    metadata = parseDiffFromFile(
+      { name: "original", contents: toContents(originalLines) },
+      { name: "modified", contents: toContents(modifiedLines) },
+      {
+        context: 0,
+        ignoreWhitespace: ignoreTrimWhitespace,
+        timeout: timeoutMs,
+      } as CreatePatchOptionsNonabortable,
+    );
+  } catch {
+    return {
+      changes: [
+        {
+          original: { start_line: 1, end_line: originalLines.length + 1 },
+          modified: { start_line: 1, end_line: modifiedLines.length + 1 },
+          inner_changes: [],
+        },
+      ],
+      moves: [],
+      hit_timeout: true,
+    };
+  }
 
   const changes: DetailedLineRangeMapping[] = [];
   for (const hunk of metadata.hunks) {
