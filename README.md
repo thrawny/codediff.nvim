@@ -20,6 +20,20 @@ https://github.com/user-attachments/assets/64c41f01-dffe-4318-bce4-16eec8de356e
 
 ## Features
 
+### Experimental review foundation
+
+`codediff.nvim` now includes an experimental built-in `:CodeReview` command so review workflow code can be consolidated into this repo over time.
+
+Current built-ins:
+- `:CodeReview` / `:CodeReview open` — open a review session on the current working tree
+- `:CodeReview commits REV [REV2]` — open a review session for a revision or revision range
+- `:CodeReview export` — export stored review comments to the clipboard
+- `:CodeReview preview` — preview exported markdown
+- `:CodeReview clear` — clear stored review comments
+
+This is intentionally minimal for now: comment storage/export now lives in `lua/codediff/review/`, while interactive comment UI and annotations still need to be folded in.
+
+
 - **Two-tier highlighting system**:
   - Light backgrounds for entire modified lines (green for insertions, red for deletions)
   - Deep/dark character-level highlights showing exact changes within lines
