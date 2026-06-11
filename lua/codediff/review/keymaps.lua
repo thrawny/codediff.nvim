@@ -309,6 +309,8 @@ local function set_buffer_keymaps(bufnr)
   end, "Toggle readonly mode")
   set(km.show_help, show_help, "Show help")
 
+  require("codediff.review.lsp_proxy").apply_to_buffer(vim.api.nvim_get_current_tabpage(), bufnr, mapped)
+
   keymapped_buffers[bufnr] = mapped
 end
 

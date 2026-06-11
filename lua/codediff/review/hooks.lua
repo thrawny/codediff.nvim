@@ -15,9 +15,26 @@ local function set_buffer_filetype(bufnr, path)
   end
 
   local ft = vim.filetype.match({ filename = path, buf = bufnr })
-  if ft then
-    vim.api.nvim_set_option_value("filetype", ft, { buf = bufnr })
+  if not ft then
+    return
   end
+
+  local bufname = vim.api.nvim_buf_get_name(bufnr)
+  local buftype = vim.api.nvim_get_option_value("buftype", { buf = bufnr })
+  if buftype ~= "" or bufname == "" or bufname:match("^codediff://") then
+    -- Do not set 'filetype' for synthetic review buffers. Setting it fires
+    -- FileType autocmds, which makes LSP plugins attach to buffers that are
+    -- not real files. Keep the detected type for CodeDiff rendering without
+    -- triggering LSP.
+    vim.b[bufnr].codediff_filetype = ft
+    local lang = vim.treesitter.language.get_lang(ft) or ft
+    if not pcall(vim.treesitter.start, bufnr, lang) then
+      vim.api.nvim_set_option_value("syntax", ft, { buf = bufnr })
+    end
+    return
+  end
+
+  vim.api.nvim_set_option_value("filetype", ft, { buf = bufnr })
 end
 
 ---@return number|nil
