@@ -48,6 +48,14 @@ function M.setup(opts)
     end,
   })
 
+  vim.api.nvim_create_autocmd("User", {
+    group = augroup,
+    pattern = "CodeDiffClose",
+    callback = function()
+      hooks.on_session_closed()
+    end,
+  })
+
   initialized = true
 end
 
@@ -141,6 +149,13 @@ function M.close(opts)
   if store.count() > 0 then
     export.to_clipboard(not opts or opts.preview ~= false)
   end
+
+  local tabpage = vim.api.nvim_get_current_tabpage()
+  local ok, lifecycle = pcall(require, "codediff.ui.lifecycle")
+  if ok and lifecycle.get_session(tabpage) then
+    lifecycle.cleanup(tabpage)
+  end
+
   vim.cmd("tabclose")
   hooks.on_session_closed()
   storage.clear_revisions()

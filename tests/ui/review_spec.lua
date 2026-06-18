@@ -70,4 +70,25 @@ describe("codediff.review foundation", function()
     assert.is_true(markdown:find("file1.txt:1", 1, true) ~= nil)
     assert.is_true(markdown:find("Needs work", 1, true) ~= nil)
   end)
+
+  it("restores buffer editability when a review session is cleaned up", function()
+    local tabpage = open_review(repo)
+    local lifecycle = require("codediff.ui.lifecycle")
+    local session = lifecycle.get_session(tabpage)
+    assert.is_not_nil(session)
+
+    session.codediff_review_active = true
+    require("codediff.review.hooks").on_session_created(tabpage)
+
+    local modified_buf = session.modified_bufnr
+    assert.is_true(vim.api.nvim_buf_is_valid(modified_buf))
+    assert.is_false(vim.bo[modified_buf].modifiable)
+    assert.is_true(vim.bo[modified_buf].readonly)
+
+    lifecycle.cleanup(tabpage)
+
+    assert.is_true(vim.api.nvim_buf_is_valid(modified_buf))
+    assert.is_true(vim.bo[modified_buf].modifiable)
+    assert.is_false(vim.bo[modified_buf].readonly)
+  end)
 end)

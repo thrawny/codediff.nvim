@@ -8,6 +8,44 @@ local normalize_path = require("codediff.review.utils").normalize_path
 local current_tabpage = nil
 ---@type number|nil
 local buf_augroup = nil
+---@type table<number, { modifiable: boolean, readonly: boolean }>
+local review_buffer_options = {}
+
+local function save_review_buffer_options(bufnr)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or review_buffer_options[bufnr] then
+    return
+  end
+
+  review_buffer_options[bufnr] = {
+    modifiable = vim.api.nvim_get_option_value("modifiable", { buf = bufnr }),
+    readonly = vim.api.nvim_get_option_value("readonly", { buf = bufnr }),
+  }
+end
+
+local function restore_review_buffer_options(bufnr)
+  local saved = review_buffer_options[bufnr]
+  if not saved then
+    return
+  end
+
+  review_buffer_options[bufnr] = nil
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
+  pcall(vim.api.nvim_set_option_value, "modifiable", saved.modifiable, { buf = bufnr })
+  pcall(vim.api.nvim_set_option_value, "readonly", saved.readonly, { buf = bufnr })
+end
+
+local function restore_all_review_buffer_options()
+  local bufs = {}
+  for bufnr in pairs(review_buffer_options) do
+    table.insert(bufs, bufnr)
+  end
+  for _, bufnr in ipairs(bufs) do
+    restore_review_buffer_options(bufnr)
+  end
+end
 
 local function set_buffer_filetype(bufnr, path)
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or not path or path == "" then
@@ -165,10 +203,12 @@ function M.on_session_created(tabpage)
   local cfg = config.get()
   if cfg.codediff.readonly then
     if orig_buf and vim.api.nvim_buf_is_valid(orig_buf) then
+      save_review_buffer_options(orig_buf)
       vim.api.nvim_set_option_value("modifiable", false, { buf = orig_buf })
       vim.api.nvim_set_option_value("readonly", true, { buf = orig_buf })
     end
     if mod_buf and vim.api.nvim_buf_is_valid(mod_buf) then
+      save_review_buffer_options(mod_buf)
       vim.api.nvim_set_option_value("modifiable", false, { buf = mod_buf })
       vim.api.nvim_set_option_value("readonly", true, { buf = mod_buf })
     end
@@ -229,6 +269,7 @@ function M._focus_modified_pane(lifecycle, tabpage)
 end
 
 function M.on_session_closed()
+  restore_all_review_buffer_options()
   current_tabpage = nil
   if buf_augroup then
     pcall(vim.api.nvim_del_augroup_by_id, buf_augroup)
