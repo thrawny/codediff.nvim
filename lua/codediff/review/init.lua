@@ -145,20 +145,77 @@ function M.open_pr(number)
   require("codediff.review.pr").open(number)
 end
 
-function M.close(opts)
-  if store.count() > 0 then
-    export.to_clipboard(not opts or opts.preview ~= false)
+function M.current_session()
+  local ok, lifecycle = pcall(require, "codediff.ui.lifecycle")
+  if not ok then
+    return nil, nil, nil
   end
 
   local tabpage = vim.api.nvim_get_current_tabpage()
-  local ok, lifecycle = pcall(require, "codediff.ui.lifecycle")
-  if ok and lifecycle.get_session(tabpage) then
+  local session = lifecycle.get_session(tabpage)
+  if not session or not session.codediff_review_active then
+    return nil, nil, nil
+  end
+
+  return lifecycle, tabpage, session
+end
+
+function M.is_active()
+  return M.current_session() ~= nil
+end
+
+function M.export_clipboard(opts)
+  opts = opts or {}
+  if store.count() == 0 then
+    if opts.notify_empty ~= false then
+      vim.notify("No comments to export", vim.log.levels.WARN, { title = "codediff.review" })
+    end
+    return false
+  end
+
+  export.to_clipboard(opts.preview ~= false)
+  return true
+end
+
+function M.close(opts)
+  opts = opts or {}
+  local lifecycle, tabpage = M.current_session()
+  if opts.noop_if_inactive and not lifecycle then
+    return false
+  end
+
+  if opts.export ~= false and store.count() > 0 then
+    export.to_clipboard(opts.preview ~= false)
+  end
+
+  if lifecycle and lifecycle.get_session(tabpage) then
     lifecycle.cleanup(tabpage)
   end
 
-  vim.cmd("tabclose")
+  if opts.clear then
+    store.clear()
+    require("codediff.review.marks").clear_all()
+  end
+
+  if #vim.api.nvim_list_tabpages() > 1 then
+    local close_ok, close_err = pcall(vim.cmd, "tabclose")
+    local close_err_msg = tostring(close_err)
+    local nonfatal_close_error = close_err_msg:find("E784", 1, true) or close_err_msg:find("E445", 1, true)
+    if not close_ok and not nonfatal_close_error then
+      error(close_err)
+    end
+  end
   hooks.on_session_closed()
   storage.clear_revisions()
+  return true
+end
+
+function M.toggle(opts)
+  if M.is_active() then
+    return M.close(opts)
+  end
+  M.open()
+  return true
 end
 
 function M.export(opts)

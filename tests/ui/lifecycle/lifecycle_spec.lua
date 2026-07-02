@@ -4,6 +4,8 @@
 local lifecycle = require("codediff.ui.lifecycle")
 local highlights = require("codediff.ui.highlights")
 local diff = require('codediff.core.diff')
+local codediff_config = require("codediff.config")
+local view_keymaps = require("codediff.ui.view.keymaps")
 
 describe("Render Lifecycle", function()
   before_each(function()
@@ -42,6 +44,123 @@ describe("Render Lifecycle", function()
 
     assert.is_true(success, "Should create and complete session without error")
 
+    vim.cmd('tabclose')
+    vim.api.nvim_buf_delete(left_buf, {force = true})
+    vim.api.nvim_buf_delete(right_buf, {force = true})
+  end)
+
+  it("keeps diff winbars empty by default", function()
+    local left_buf = vim.api.nvim_create_buf(false, true)
+    local right_buf = vim.api.nvim_create_buf(false, true)
+
+    vim.cmd('tabnew')
+    local tabpage = vim.api.nvim_get_current_tabpage()
+    vim.cmd('vsplit')
+    local left_win = vim.api.nvim_get_current_win()
+    vim.cmd('wincmd l')
+    local right_win = vim.api.nvim_get_current_win()
+
+    vim.api.nvim_win_set_buf(left_win, left_buf)
+    vim.api.nvim_win_set_buf(right_win, right_buf)
+
+    local original = {"line 1"}
+    local modified = {"line 1", "line 2"}
+    local lines_diff = diff.compute_diff(original, modified)
+    lifecycle.create_session(tabpage, "standalone", nil, "test_file1.txt", "test_file2.txt", "WORKING", "WORKING",
+                               left_buf, right_buf, left_win, right_win, lines_diff)
+
+    vim.api.nvim_set_current_win(right_win)
+    vim.api.nvim_exec_autocmds("CursorMoved", {})
+
+    assert.equal("", vim.wo[right_win].winbar)
+
+    vim.cmd('tabclose')
+    vim.api.nvim_buf_delete(left_buf, {force = true})
+    vim.api.nvim_buf_delete(right_buf, {force = true})
+  end)
+
+  it("shows hunk position in diff winbars when enabled", function()
+    local previous_winbar = vim.deepcopy(codediff_config.options.diff.winbar)
+    codediff_config.options.diff.winbar = {enabled = true, show_file_index = true, show_hunk_index = true}
+
+    local left_buf = vim.api.nvim_create_buf(false, true)
+    local right_buf = vim.api.nvim_create_buf(false, true)
+
+    vim.cmd('tabnew')
+    local tabpage = vim.api.nvim_get_current_tabpage()
+    vim.cmd('vsplit')
+    local left_win = vim.api.nvim_get_current_win()
+    vim.cmd('wincmd l')
+    local right_win = vim.api.nvim_get_current_win()
+
+    vim.api.nvim_win_set_buf(left_win, left_buf)
+    vim.api.nvim_win_set_buf(right_win, right_buf)
+
+    local original = {"line 1"}
+    local modified = {"line 1", "line 2"}
+    vim.api.nvim_buf_set_lines(left_buf, 0, -1, false, original)
+    vim.api.nvim_buf_set_lines(right_buf, 0, -1, false, modified)
+    local lines_diff = diff.compute_diff(original, modified)
+    lifecycle.create_session(tabpage, "standalone", nil, "test_file1.txt", "test_file2.txt", "WORKING", "WORKING",
+                               left_buf, right_buf, left_win, right_win, lines_diff)
+
+    vim.api.nvim_set_current_win(right_win)
+    vim.api.nvim_win_set_cursor(right_win, {2, 0})
+    vim.api.nvim_exec_autocmds("CursorMoved", {})
+
+    assert.is_true(vim.wo[right_win].winbar:find("1/1", 1, true) ~= nil)
+
+    codediff_config.options.diff.winbar = previous_winbar
+    vim.cmd('tabclose')
+    vim.api.nvim_buf_delete(left_buf, {force = true})
+    vim.api.nvim_buf_delete(right_buf, {force = true})
+  end)
+
+  it("sets and clears list-valued hunk-or-file keymap aliases", function()
+    local previous_next = vim.deepcopy(codediff_config.options.keymaps.view.next_hunk_or_file)
+    local previous_prev = vim.deepcopy(codediff_config.options.keymaps.view.prev_hunk_or_file)
+    codediff_config.options.keymaps.view.next_hunk_or_file = {"<Tab>", "<C-i>"}
+    codediff_config.options.keymaps.view.prev_hunk_or_file = "<S-Tab>"
+
+    local left_buf = vim.api.nvim_create_buf(false, true)
+    local right_buf = vim.api.nvim_create_buf(false, true)
+
+    vim.cmd('tabnew')
+    local tabpage = vim.api.nvim_get_current_tabpage()
+    vim.cmd('vsplit')
+    local left_win = vim.api.nvim_get_current_win()
+    vim.cmd('wincmd l')
+    local right_win = vim.api.nvim_get_current_win()
+
+    vim.api.nvim_win_set_buf(left_win, left_buf)
+    vim.api.nvim_win_set_buf(right_win, right_buf)
+
+    local original = {"line 1"}
+    local modified = {"line 2"}
+    local lines_diff = diff.compute_diff(original, modified)
+    lifecycle.create_session(tabpage, "standalone", nil, "test_file1.txt", "test_file2.txt", "WORKING", "WORKING",
+                               left_buf, right_buf, left_win, right_win, lines_diff)
+
+    view_keymaps.setup_all_keymaps(tabpage, left_buf, right_buf, false)
+
+    local function has_map(lhs)
+      for _, map in ipairs(vim.api.nvim_buf_get_keymap(right_buf, "n")) do
+        if map.lhs == lhs then
+          return true
+        end
+      end
+      return false
+    end
+
+    assert.is_true(has_map("<Tab>"))
+    assert.is_true(has_map("<C-I>"))
+
+    lifecycle.clear_tab_keymaps(tabpage)
+    assert.is_false(has_map("<Tab>"))
+    assert.is_false(has_map("<C-I>"))
+
+    codediff_config.options.keymaps.view.next_hunk_or_file = previous_next
+    codediff_config.options.keymaps.view.prev_hunk_or_file = previous_prev
     vim.cmd('tabclose')
     vim.api.nvim_buf_delete(left_buf, {force = true})
     vim.api.nvim_buf_delete(right_buf, {force = true})

@@ -40,6 +40,52 @@ local function is_virtual_revision(revision)
   return revision ~= nil and revision ~= "WORKING"
 end
 
+local function build_winbar(sess, win)
+  local winbar_config = config.options.diff.winbar or {}
+  if not winbar_config.enabled then
+    return ""
+  end
+
+  local parts = {}
+
+  if winbar_config.show_file_index ~= false and sess.explorer and sess.explorer.tree then
+    local ok, refresh = pcall(require, "codediff.ui.explorer.refresh")
+    if ok then
+      local all_files = refresh.get_all_files(sess.explorer.tree)
+      local current = sess.explorer.current_file_path
+      for i, file in ipairs(all_files) do
+        if file.data and file.data.path == current then
+          table.insert(parts, string.format("󰈔 %d/%d  %s", i, #all_files, current))
+          break
+        end
+      end
+    end
+  end
+
+  if winbar_config.show_hunk_index ~= false then
+    local diff_result = sess.stored_diff_result
+    if diff_result and diff_result.changes and #diff_result.changes > 0 then
+      local cursor = vim.api.nvim_win_get_cursor(win)[1]
+      local is_original = win == sess.original_win and win ~= sess.modified_win
+      local current_hunk = 0
+      for i, mapping in ipairs(diff_result.changes) do
+        local side = is_original and mapping.original or mapping.modified
+        if side and cursor >= side.start_line then
+          current_hunk = i
+        end
+      end
+      if current_hunk > 0 then
+        table.insert(parts, string.format(" %d/%d", current_hunk, #diff_result.changes))
+      end
+    end
+  end
+
+  if #parts == 0 then
+    return ""
+  end
+  return "%=" .. table.concat(parts, "  ") .. "%="
+end
+
 -- Compute virtual URI from revision (not stored, computed on-demand)
 local function compute_virtual_uri(git_root, revision, path)
   if not is_virtual_revision(revision) then
@@ -148,22 +194,17 @@ function M.create_session(
     })
   end
 
-  -- Force disable winbar to prevent alignment issues (except in conflict mode)
+  -- Keep diff window UI stable. Conflict mode owns its own winbar titles.
   local function sync_window_ui(sess, win)
-    -- In conflict mode, preserve existing winbar titles (set by conflict_window.lua)
     if sess and sess.result_win and vim.api.nvim_win_is_valid(sess.result_win) then
       return
     end
-    -- Normal diff mode: disable winbar
-    if sess and sess.original_win and vim.api.nvim_win_is_valid(sess.original_win) then
-      vim.wo[sess.original_win].winbar = ""
-    end
-    if sess and sess.modified_win and vim.api.nvim_win_is_valid(sess.modified_win) then
-      vim.wo[sess.modified_win].winbar = ""
+    if sess and vim.api.nvim_win_is_valid(win) then
+      vim.wo[win].winbar = build_winbar(sess, win)
     end
   end
 
-  vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "WinEnter", "FileType" }, {
+  vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "WinEnter", "FileType", "CursorMoved" }, {
     group = tab_augroup,
     callback = function()
       local sess = active_diffs[tabpage]

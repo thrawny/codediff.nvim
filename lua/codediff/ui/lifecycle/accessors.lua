@@ -295,11 +295,19 @@ function M.complete_render(tabpage, render_seq, data)
   event_data.tabpage = tabpage
   event_data.render_seq = seq
 
-  vim.api.nvim_exec_autocmds("User", {
-    pattern = "CodeDiffRender",
-    modeline = false,
-    data = event_data,
-  })
+  local function emit_render_event()
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = "CodeDiffRender",
+      modeline = false,
+      data = event_data,
+    })
+  end
+
+  if vim.in_fast_event() then
+    vim.schedule(emit_render_event)
+  else
+    emit_render_event()
+  end
 
   local pending = sess.pending_navigation
   if pending and pending.render_seq == seq then
@@ -561,14 +569,25 @@ function M.clear_tab_keymaps(tabpage)
     return
   end
 
+  local function del_key(bufnr, key)
+    if not key then
+      return
+    end
+    if type(key) == "table" then
+      for _, nested_key in ipairs(key) do
+        del_key(bufnr, nested_key)
+      end
+      return
+    end
+    pcall(vim.keymap.del, "n", key, { buffer = bufnr })
+  end
+
   local function del_buf_keymaps(bufnr, keys)
     if not vim.api.nvim_buf_is_valid(bufnr) then
       return
     end
     for _, key in pairs(keys) do
-      if key then
-        pcall(vim.keymap.del, "n", key, { buffer = bufnr })
-      end
+      del_key(bufnr, key)
     end
   end
 

@@ -46,6 +46,11 @@ M.defaults = {
     jump_to_first_change = true, -- Auto-scroll to first change when opening a diff: true = jump to first hunk, false = stay at same line
     highlight_priority = 100, -- Priority for line-level diff highlights (increase to override LSP highlights)
     compute_moves = false, -- Detect moved code blocks (opt-in, may increase diff computation time)
+    winbar = {
+      enabled = false, -- Show current file and hunk position in diff window winbars
+      show_file_index = true,
+      show_hunk_index = true,
+    },
   },
 
   -- Explorer panel configuration

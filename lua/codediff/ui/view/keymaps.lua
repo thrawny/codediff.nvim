@@ -563,6 +563,19 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
   -- Bind all keymaps using unified API (one place for all keymaps!)
   -- ========================================================================
 
+  local function set_one_or_many(keys_for_action, rhs, opts)
+    if not keys_for_action then
+      return
+    end
+    if type(keys_for_action) == "table" then
+      for _, key in ipairs(keys_for_action) do
+        lifecycle.set_tab_keymap(tabpage, "n", key, rhs, opts)
+      end
+      return
+    end
+    lifecycle.set_tab_keymap(tabpage, "n", keys_for_action, rhs, opts)
+  end
+
   -- Quit keymap (q)
   if keymaps.quit then
     lifecycle.set_tab_keymap(tabpage, "n", keymaps.quit, quit_diff, { desc = "Close codediff tab" })
@@ -575,12 +588,8 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
   if keymaps.prev_hunk then
     lifecycle.set_tab_keymap(tabpage, "n", keymaps.prev_hunk, navigation.prev_hunk, { desc = "Previous hunk" })
   end
-  if keymaps.next_hunk_or_file then
-    lifecycle.set_tab_keymap(tabpage, "n", keymaps.next_hunk_or_file, navigation.next_hunk_or_file, { desc = "Next hunk or file" })
-  end
-  if keymaps.prev_hunk_or_file then
-    lifecycle.set_tab_keymap(tabpage, "n", keymaps.prev_hunk_or_file, navigation.prev_hunk_or_file, { desc = "Previous hunk or file" })
-  end
+  set_one_or_many(keymaps.next_hunk_or_file, navigation.next_hunk_or_file, { desc = "Next hunk or file" })
+  set_one_or_many(keymaps.prev_hunk_or_file, navigation.prev_hunk_or_file, { desc = "Previous hunk or file" })
 
   -- Explorer toggle (e) - only in explorer mode
   if is_explorer_mode and keymaps.toggle_explorer then
