@@ -55,7 +55,6 @@ local function compute_and_render_inline(
   end
 
   if modified_win and vim.api.nvim_win_is_valid(modified_win) then
-    vim.wo[modified_win].wrap = false
     if auto_scroll_to_first_hunk and lines_diff.changes and #lines_diff.changes > 0 then
       local target_line = lines_diff.changes[1].modified.start_line
       pcall(vim.api.nvim_win_set_cursor, modified_win, { target_line, 0 })

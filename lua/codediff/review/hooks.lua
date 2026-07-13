@@ -10,6 +10,10 @@ local current_tabpage = nil
 local buf_augroup = nil
 ---@type table<number, { modifiable: boolean, readonly: boolean }>
 local review_buffer_options = {}
+---@type table<number, number>
+local review_window_buffers = {}
+
+local wrap_options = { "wrap", "linebreak", "breakindent", "showbreak", "breakindentopt" }
 
 local function save_review_buffer_options(bufnr)
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or review_buffer_options[bufnr] then
@@ -72,7 +76,41 @@ local function set_buffer_filetype(bufnr, path)
     return
   end
 
-  vim.api.nvim_set_option_value("filetype", ft, { buf = bufnr })
+  if vim.api.nvim_get_option_value("filetype", { buf = bufnr }) ~= ft then
+    vim.api.nvim_set_option_value("filetype", ft, { buf = bufnr })
+  end
+end
+
+local function inherit_filetype_wrap_options(bufnr, win)
+  if not bufnr or not win or not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_win_is_valid(win) then
+    return
+  end
+
+  local ft = vim.b[bufnr].codediff_filetype or vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+  if not ft or ft == "" then
+    return
+  end
+
+  for _, option in ipairs(wrap_options) do
+    local ok, value = pcall(vim.filetype.get_option, ft, option)
+    if ok and value ~= nil then
+      pcall(vim.api.nvim_set_option_value, option, value, { win = win })
+    end
+  end
+end
+
+local function inherit_session_wrap_options(sess)
+  local seen = {}
+  for _, win in ipairs({ sess.original_win, sess.modified_win }) do
+    if win and not seen[win] and vim.api.nvim_win_is_valid(win) then
+      seen[win] = true
+      local bufnr = vim.api.nvim_win_get_buf(win)
+      if review_window_buffers[win] ~= bufnr then
+        review_window_buffers[win] = bufnr
+        inherit_filetype_wrap_options(bufnr, win)
+      end
+    end
+  end
 end
 
 ---@return number|nil
@@ -200,6 +238,11 @@ function M.on_session_created(tabpage)
   set_buffer_filetype(orig_buf, raw_orig_path)
   set_buffer_filetype(mod_buf, raw_mod_path)
 
+  local sess = lifecycle.get_session(tabpage)
+  if sess then
+    inherit_session_wrap_options(sess)
+  end
+
   local cfg = config.get()
   if cfg.codediff.readonly then
     if orig_buf and vim.api.nvim_buf_is_valid(orig_buf) then
@@ -270,6 +313,7 @@ end
 
 function M.on_session_closed()
   restore_all_review_buffer_options()
+  review_window_buffers = {}
   current_tabpage = nil
   if buf_augroup then
     pcall(vim.api.nvim_del_augroup_by_id, buf_augroup)

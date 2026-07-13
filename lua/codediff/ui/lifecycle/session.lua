@@ -214,8 +214,6 @@ function M.create_session(
       local win = vim.api.nvim_get_current_win()
       if win == sess.original_win or win == sess.modified_win then
         sync_window_ui(sess, win)
-        -- Re-apply critical window options that might get reset by ftplugins/autocmds
-        vim.wo[win].wrap = false
         welcome_window.sync(win)
       end
     end,

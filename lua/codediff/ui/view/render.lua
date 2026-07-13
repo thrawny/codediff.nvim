@@ -105,8 +105,6 @@ function M.compute_and_render(
     -- Step 1: Disable scrollbind while repositioning cursors
     vim.wo[original_win].scrollbind = false
     vim.wo[modified_win].scrollbind = false
-    vim.wo[original_win].wrap = false
-    vim.wo[modified_win].wrap = false
 
     -- Step 2: Determine target cursor positions
     local orig_cursor, mod_cursor

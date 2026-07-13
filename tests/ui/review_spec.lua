@@ -8,9 +8,10 @@ local h = dofile("tests/helpers.lua")
 h.ensure_plugin_loaded()
 dofile(plugin_root .. "/plugin/codediff_review.lua")
 
-local function open_review(repo)
+local function open_review(repo, filename)
+  filename = filename or "file1.txt"
   vim.fn.chdir(repo.dir)
-  vim.cmd("edit " .. repo.path("file1.txt"))
+  vim.cmd("edit " .. repo.path(filename))
   vim.cmd("CodeReview")
 
   local lifecycle = require("codediff.ui.lifecycle")
@@ -51,6 +52,7 @@ describe("codediff.review foundation", function()
       vim.cmd("tabnew")
       vim.cmd("tabonly")
     end)
+    pcall(vim.api.nvim_del_augroup_by_name, "codediff_review_test_markdown_wrap")
     vim.fn.chdir(original_cwd)
     vim.wait(150)
     if repo then
@@ -83,6 +85,51 @@ describe("codediff.review foundation", function()
     assert.is_not_nil(lifecycle)
     assert.equals(tabpage, current_tabpage)
     assert.is_not_nil(session)
+  end)
+
+  it("inherits markdown wrapping without overriding manual toggles", function()
+    repo.git("restore file1.txt")
+    repo.write_file("README.md", { "# Before", "", "A long paragraph before the change." })
+    repo.git("add README.md")
+    repo.git('commit -m "add markdown"')
+    repo.write_file("README.md", { "# After", "", "A long paragraph after the change." })
+
+    local group = vim.api.nvim_create_augroup("codediff_review_test_markdown_wrap", { clear = true })
+    vim.api.nvim_create_autocmd("FileType", {
+      group = group,
+      pattern = "markdown",
+      callback = function()
+        vim.opt_local.wrap = true
+        vim.opt_local.linebreak = true
+        vim.opt_local.breakindent = true
+      end,
+    })
+
+    assert.is_true(vim.filetype.get_option("markdown", "wrap"))
+
+    local tabpage = open_review(repo, "README.md")
+    vim.api.nvim_set_current_tabpage(tabpage)
+    local session = require("codediff.ui.lifecycle").get_session(tabpage)
+    assert.is_not_nil(session)
+    vim.api.nvim_set_current_win(session.modified_win)
+
+    local configured = vim.wait(1000, function()
+      local ft = vim.b[session.modified_bufnr].codediff_filetype or vim.bo[session.modified_bufnr].filetype
+      return ft == "markdown" and vim.wo[session.modified_win].wrap
+    end, 20)
+    assert.is_true(configured, "Markdown review pane should inherit its filetype wrap setting")
+    assert.is_true(vim.wo[session.modified_win].linebreak)
+    assert.is_true(vim.wo[session.modified_win].breakindent)
+
+    vim.wo[session.modified_win].wrap = false
+    vim.api.nvim_exec_autocmds("CursorMoved", {})
+    assert.is_false(vim.wo[session.modified_win].wrap, "CursorMoved should preserve disabled wrapping")
+
+    vim.wo[session.modified_win].wrap = true
+    vim.api.nvim_exec_autocmds("CursorMoved", {})
+    assert.is_true(vim.wo[session.modified_win].wrap, "CursorMoved should preserve enabled wrapping")
+
+    vim.api.nvim_del_augroup_by_id(group)
   end)
 
   it("supports no-op close outside review sessions", function()

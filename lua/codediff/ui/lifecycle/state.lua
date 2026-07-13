@@ -222,13 +222,6 @@ local function resume_diff(tabpage)
           vim.wo[result_win].scrollbind = true
         end
 
-        -- Re-apply critical window options that might have been reset
-        vim.wo[diff.original_win].wrap = false
-        vim.wo[diff.modified_win].wrap = false
-        if result_win then
-          vim.wo[result_win].wrap = false
-        end
-
         -- Step 4: Restore cursor position with both line and column
         pcall(vim.api.nvim_win_set_cursor, diff.original_win, saved_cursor)
         pcall(vim.api.nvim_win_set_cursor, diff.modified_win, saved_cursor)
