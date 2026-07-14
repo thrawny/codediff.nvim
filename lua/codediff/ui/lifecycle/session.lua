@@ -116,6 +116,13 @@ function M.create_session(
   -- Save buffer states
   local original_state = state.save_buffer_state(original_bufnr)
   local modified_state = state.save_buffer_state(modified_bufnr)
+  local window_winbars = {}
+  if original_win and vim.api.nvim_win_is_valid(original_win) then
+    window_winbars[original_win] = vim.wo[original_win].winbar
+  end
+  if modified_win and vim.api.nvim_win_is_valid(modified_win) and window_winbars[modified_win] == nil then
+    window_winbars[modified_win] = vim.wo[modified_win].winbar
+  end
 
   -- Create complete session in one step
   active_diffs[tabpage] = {
@@ -134,6 +141,7 @@ function M.create_session(
     modified_win = modified_win,
     original_state = original_state,
     modified_state = modified_state,
+    window_winbars = window_winbars,
 
     -- Lifecycle state
     layout = "side-by-side",

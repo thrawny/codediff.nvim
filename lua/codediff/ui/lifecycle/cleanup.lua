@@ -91,19 +91,15 @@ local function cleanup_diff(tabpage)
     end
   end
 
-  -- Clear window variables if windows still exist
-  if diff.original_win and vim.api.nvim_win_is_valid(diff.original_win) then
-    welcome_window.apply_normal(diff.original_win)
-    vim.w[diff.original_win].codediff_restore = nil
-  end
-  if diff.modified_win and vim.api.nvim_win_is_valid(diff.modified_win) then
-    welcome_window.apply_normal(diff.modified_win)
-    vim.w[diff.modified_win].codediff_restore = nil
-  end
-
-  -- Clear result window variable if exists (conflict mode)
-  if diff.result_win and vim.api.nvim_win_is_valid(diff.result_win) then
-    vim.w[diff.result_win].codediff_restore = nil
+  -- Restore window UI and clear markers while the session is still tracked.
+  local restored_windows = {}
+  for _, win in ipairs({ diff.original_win, diff.modified_win, diff.result_win }) do
+    if win and not restored_windows[win] and vim.api.nvim_win_is_valid(win) then
+      restored_windows[win] = true
+      welcome_window.apply_normal(win)
+      vim.wo[win].winbar = (diff.window_winbars and diff.window_winbars[win]) or ""
+      vim.w[win].codediff_restore = nil
+    end
   end
 
   -- Clear result buffer signs (conflict mode)

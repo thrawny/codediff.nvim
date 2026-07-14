@@ -435,6 +435,10 @@ function M.set_result(tabpage, result_bufnr, result_win)
 
   -- Mark result window with restore flag
   if result_win and vim.api.nvim_win_is_valid(result_win) then
+    sess.window_winbars = sess.window_winbars or {}
+    if sess.window_winbars[result_win] == nil then
+      sess.window_winbars[result_win] = vim.wo[result_win].winbar
+    end
     vim.w[result_win].codediff_restore = 1
   end
 
