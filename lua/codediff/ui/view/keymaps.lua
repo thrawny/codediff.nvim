@@ -6,6 +6,7 @@ local auto_refresh = require("codediff.ui.auto_refresh")
 local config = require("codediff.config")
 local navigation = require("codediff.ui.view.navigation")
 local render = require("codediff.ui.view.render")
+local hunk_range = require("codediff.ui.hunk_range")
 
 -- Centralized keymap setup for all diff view keymaps
 -- This function sets up ALL keymaps in one place for better maintainability
@@ -82,16 +83,11 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
     local is_original = not is_inline and current_buf == live_original
     local cursor = vim.api.nvim_win_get_cursor(0)
     local current_line = cursor[1]
+    local line_count = vim.api.nvim_buf_line_count(current_buf)
 
     for i, mapping in ipairs(diff_result.changes) do
-      local start_line = is_original and mapping.original.start_line or mapping.modified.start_line
-      local end_line = is_original and mapping.original.end_line or mapping.modified.end_line
-      -- Check if cursor is within this hunk (end_line is exclusive)
-      if current_line >= start_line and current_line < end_line then
-        return mapping, i
-      end
-      -- Also match if it's a deletion (empty range) and cursor is at start
-      if start_line == end_line and current_line == start_line then
+      local range = is_original and mapping.original or mapping.modified
+      if hunk_range.contains_line(range, current_line, line_count) then
         return mapping, i
       end
     end

@@ -6,6 +6,7 @@ local config = require("codediff.config")
 local virtual_file = require("codediff.core.virtual_file")
 local accessors = require("codediff.ui.lifecycle.accessors")
 local welcome_window = require("codediff.ui.view.welcome_window")
+local hunk_range = require("codediff.ui.hunk_range")
 
 -- Track active diff sessions
 -- Structure: {
@@ -66,11 +67,12 @@ local function build_winbar(sess, win)
     local diff_result = sess.stored_diff_result
     if diff_result and diff_result.changes and #diff_result.changes > 0 then
       local cursor = vim.api.nvim_win_get_cursor(win)[1]
+      local line_count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(win))
       local is_original = win == sess.original_win and win ~= sess.modified_win
       local current_hunk = 0
       for i, mapping in ipairs(diff_result.changes) do
         local side = is_original and mapping.original or mapping.modified
-        if side and cursor >= side.start_line then
+        if side and cursor >= hunk_range.target_line(side, line_count) then
           current_hunk = i
         end
       end

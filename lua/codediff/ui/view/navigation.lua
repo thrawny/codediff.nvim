@@ -3,6 +3,7 @@ local M = {}
 
 local lifecycle = require("codediff.ui.lifecycle")
 local config = require("codediff.config")
+local hunk_range = require("codediff.ui.hunk_range")
 
 local function echo_hunk_message(chunks)
   if not config.options.diff.show_hunk_navigation_message then
@@ -62,10 +63,12 @@ function M.next_hunk()
 
   local cursor = vim.api.nvim_win_get_cursor(target_win)
   local current_line = cursor[1]
+  local line_count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(target_win))
 
   -- Find next hunk after current line
   for i, mapping in ipairs(diff_result.changes) do
-    local target_line = is_original and mapping.original.start_line or mapping.modified.start_line
+    local range = is_original and mapping.original or mapping.modified
+    local target_line = hunk_range.target_line(range, line_count)
     if target_line > current_line then
       pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
       vim.api.nvim_set_current_win(target_win)
@@ -78,7 +81,8 @@ function M.next_hunk()
   -- Wrap around to first hunk (if cycling enabled)
   if config.options.diff.cycle_next_hunk then
     local first_hunk = diff_result.changes[1]
-    local target_line = is_original and first_hunk.original.start_line or first_hunk.modified.start_line
+    local range = is_original and first_hunk.original or first_hunk.modified
+    local target_line = hunk_range.target_line(range, line_count)
     pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
     vim.api.nvim_set_current_win(target_win)
     center_window(target_win)
@@ -111,11 +115,13 @@ function M.prev_hunk()
 
   local cursor = vim.api.nvim_win_get_cursor(target_win)
   local current_line = cursor[1]
+  local line_count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(target_win))
 
   -- Find previous hunk before current line (search backwards)
   for i = #diff_result.changes, 1, -1 do
     local mapping = diff_result.changes[i]
-    local target_line = is_original and mapping.original.start_line or mapping.modified.start_line
+    local range = is_original and mapping.original or mapping.modified
+    local target_line = hunk_range.target_line(range, line_count)
     if target_line < current_line then
       pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
       vim.api.nvim_set_current_win(target_win)
@@ -128,7 +134,8 @@ function M.prev_hunk()
   -- Wrap around to last hunk (if cycling enabled)
   if config.options.diff.cycle_next_hunk then
     local last_hunk = diff_result.changes[#diff_result.changes]
-    local target_line = is_original and last_hunk.original.start_line or last_hunk.modified.start_line
+    local range = is_original and last_hunk.original or last_hunk.modified
+    local target_line = hunk_range.target_line(range, line_count)
     pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
     vim.api.nvim_set_current_win(target_win)
     center_window(target_win)

@@ -185,4 +185,38 @@ describe("cross-file hunk navigation", function()
 
     wait_for_file_and_hunk(tabpage, "c.txt", 2)
   end)
+
+  it("advances files from a pure deletion hunk at EOF", function()
+    repo = create_repo({
+      { name = "a.txt", prefix = "A", hunks = {} },
+      { name = "b.txt", prefix = "B", hunks = { 10 } },
+    })
+    local truncated = base_lines("A")
+    table.remove(truncated)
+    repo.write_file("a.txt", truncated)
+
+    local config = require("codediff.config")
+    local previous_winbar = vim.deepcopy(config.options.diff.winbar)
+    config.options.diff.winbar = { enabled = true, show_file_index = true, show_hunk_index = true }
+
+    local tabpage, session, explorer = open_codediff_and_wait(repo, "a.txt")
+    local navigation = require("codediff.ui.view.navigation")
+
+    assert.equals("a.txt", explorer.current_file_path)
+    focus_modified_window(tabpage)
+
+    local line_count = vim.api.nvim_buf_line_count(session.modified_bufnr)
+    local last_hunk = session.stored_diff_result.changes[#session.stored_diff_result.changes]
+    assert.equals(last_hunk.modified.start_line, last_hunk.modified.end_line)
+    assert.equals(line_count + 1, last_hunk.modified.start_line)
+
+    vim.api.nvim_win_set_cursor(session.modified_win, { line_count, 0 })
+    vim.api.nvim_exec_autocmds("CursorMoved", {})
+    assert.is_true(vim.wo[session.modified_win].winbar:find("1/1", 1, true) ~= nil)
+
+    navigation.next_hunk_or_file()
+    wait_for_file_and_hunk(tabpage, "b.txt", 1)
+
+    config.options.diff.winbar = previous_winbar
+  end)
 end)
