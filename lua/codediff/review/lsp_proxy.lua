@@ -85,7 +85,189 @@ local function qf_items_from_locations(locations)
   return items
 end
 
-local function open_locations(locations, title, jump_single)
+local typescript_extensions = {
+  js = true,
+  jsx = true,
+  mjs = true,
+  mts = true,
+  ts = true,
+  tsx = true,
+}
+
+local function is_typescript_import_location(loc)
+  local filename = vim.uri_to_fname(loc.uri)
+  local extension = vim.fn.fnamemodify(filename, ":e"):lower()
+  if not typescript_extensions[extension] then
+    return false
+  end
+
+  local line = vim.fn.getbufline(vim.fn.bufadd(filename), loc.range.start.line + 1)[1] or ""
+  return line:match("^%s*import[%s{*]") ~= nil or line:match("^%s*export%s") ~= nil
+end
+
+local function follow_typescript_imports(real_buf, locations)
+  local visited = {}
+  for _ = 1, 4 do
+    if #locations ~= 1 or not is_typescript_import_location(locations[1]) then
+      break
+    end
+
+    local loc = locations[1]
+    local key = string.format("%s:%d:%d", loc.uri, loc.range.start.line, loc.range.start.character)
+    if visited[key] then
+      break
+    end
+    visited[key] = true
+
+    local results = vim.lsp.buf_request_sync(real_buf, "textDocument/definition", {
+      textDocument = { uri = loc.uri },
+      position = loc.range.start,
+    }, 10000)
+    local next_locations = flatten_locations(results)
+    if #next_locations == 0 then
+      break
+    end
+
+    local next_loc = next_locations[1]
+    local next_key = string.format("%s:%d:%d", next_loc.uri, next_loc.range.start.line, next_loc.range.start.character)
+    if #next_locations == 1 and next_key == key then
+      break
+    end
+    locations = next_locations
+  end
+  return locations
+end
+
+local function absolute_session_path(session, path)
+  if not path or path == "" then
+    return nil
+  end
+  if vim.fn.isabsolutepath(path) == 1 then
+    return vim.fs.normalize(path)
+  end
+  return vim.fs.normalize((session.git_root or vim.fn.getcwd()) .. "/" .. path)
+end
+
+local function jump_to_modified_location(session, loc)
+  local target_path = vim.fs.normalize(vim.uri_to_fname(loc.uri))
+  if target_path ~= absolute_session_path(session, session.modified_path) then
+    return false
+  end
+
+  local winid = session.modified_win
+  local bufnr = session.modified_bufnr
+  if not (winid and bufnr and vim.api.nvim_win_is_valid(winid) and vim.api.nvim_buf_is_valid(bufnr)) then
+    return false
+  end
+
+  if vim.api.nvim_win_get_buf(winid) ~= bufnr then
+    vim.api.nvim_win_set_buf(winid, bufnr)
+  end
+  local line = math.min(loc.range.start.line + 1, vim.api.nvim_buf_line_count(bufnr))
+  local line_text = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1] or ""
+  local column = math.min(loc.range.start.character, #line_text)
+  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_win_set_cursor(winid, { line, column })
+  return true
+end
+
+local function relative_to_git_root(session, path)
+  local root = session.git_root and vim.fs.normalize(session.git_root) or nil
+  path = vim.fs.normalize(path)
+  if not root or path:sub(1, #root + 1) ~= root .. "/" then
+    return nil
+  end
+  return path:sub(#root + 2)
+end
+
+local function find_explorer_file(explorer, path)
+  local function visit(node)
+    if node.data and node.data.path == path then
+      return node.data
+    end
+    for _, child_id in ipairs(node:get_child_ids()) do
+      local child = explorer.tree:get_node(child_id)
+      local found = child and visit(child) or nil
+      if found then
+        return found
+      end
+    end
+  end
+
+  for _, node in ipairs(explorer.tree:get_nodes()) do
+    local found = visit(node)
+    if found then
+      return found
+    end
+  end
+end
+
+local function route_review_location(tabpage, session, loc)
+  if jump_to_modified_location(session, loc) then
+    return true
+  end
+
+  local target_path = vim.fs.normalize(vim.uri_to_fname(loc.uri))
+  local relative_path = relative_to_git_root(session, target_path)
+  local explorer = session.explorer
+  local file_data = explorer and relative_path and find_explorer_file(explorer, relative_path) or nil
+  if not file_data then
+    return false
+  end
+
+  local group = vim.api.nvim_create_augroup("codediff_review_definition_" .. tabpage, { clear = true })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeDiffRender",
+    callback = function(args)
+      if not args.data or args.data.tabpage ~= tabpage then
+        return
+      end
+      local current = require("codediff.ui.lifecycle").get_session(tabpage)
+      if not current or not jump_to_modified_location(current, loc) then
+        return
+      end
+      pcall(vim.api.nvim_del_augroup_by_id, group)
+    end,
+  })
+  explorer.on_file_select(file_data)
+  return true
+end
+
+local function focus_outside_review(tabpage)
+  local tabs = vim.api.nvim_list_tabpages()
+  local review_index
+  for index, candidate in ipairs(tabs) do
+    if candidate == tabpage then
+      review_index = index
+      break
+    end
+  end
+
+  local target_tab = review_index and review_index > 1 and tabs[review_index - 1] or nil
+  if target_tab and vim.api.nvim_tabpage_is_valid(target_tab) then
+    vim.api.nvim_set_current_tabpage(target_tab)
+    return target_tab
+  end
+
+  vim.cmd("tabnew")
+  target_tab = vim.api.nvim_get_current_tabpage()
+  vim.cmd("tabmove 0")
+  return target_tab
+end
+
+local function open_location_outside_review(tabpage, loc)
+  focus_outside_review(tabpage)
+  local path = vim.uri_to_fname(loc.uri)
+  vim.cmd.edit(vim.fn.fnameescape(path))
+  local bufnr = vim.api.nvim_get_current_buf()
+  local line = math.min(loc.range.start.line + 1, vim.api.nvim_buf_line_count(bufnr))
+  local line_text = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1] or ""
+  local column = math.min(loc.range.start.character, #line_text)
+  vim.api.nvim_win_set_cursor(0, { line, column })
+end
+
+local function open_locations(locations, title, jump_single, tabpage, session)
   if #locations == 0 then
     vim.notify("No " .. title:lower() .. " found", vim.log.levels.INFO)
     return
@@ -93,11 +275,14 @@ local function open_locations(locations, title, jump_single)
 
   if jump_single and #locations == 1 then
     local loc = locations[1]
-    vim.cmd.edit(vim.fn.fnameescape(vim.uri_to_fname(loc.uri)))
-    vim.api.nvim_win_set_cursor(0, { loc.range.start.line + 1, loc.range.start.character })
+    if tabpage and session and route_review_location(tabpage, session, loc) then
+      return
+    end
+    open_location_outside_review(tabpage, loc)
     return
   end
 
+  focus_outside_review(tabpage)
   vim.fn.setqflist({}, " ", { title = title, items = qf_items_from_locations(locations) })
 
   local ok, fzf = pcall(require, "fzf-lua")
@@ -175,18 +360,6 @@ local function with_real_lsp(session, callback)
 end
 
 local function proxy_location(tabpage, lhs)
-  if #vim.lsp.get_clients({ bufnr = 0 }) > 0 then
-    local fallback = {
-      gd = "FzfLua lsp_definitions jump1=true ignore_current_line=true",
-      gD = "lua vim.lsp.buf.declaration()",
-      gI = "FzfLua lsp_implementations jump1=true ignore_current_line=true",
-      gy = "FzfLua lsp_typedefs jump1=true ignore_current_line=true",
-      gr = "FzfLua lsp_references jump1=true ignore_current_line=true",
-    }
-    vim.cmd(fallback[lhs])
-    return
-  end
-
   local ok, lifecycle = pcall(require, "codediff.ui.lifecycle")
   local session = ok and lifecycle.get_session(tabpage)
   local spec = location_methods[lhs]
@@ -207,7 +380,11 @@ local function proxy_location(tabpage, lhs)
     end
 
     local results = vim.lsp.buf_request_sync(real_buf, spec.method, params, 10000)
-    open_locations(flatten_locations(results), spec.title, lhs ~= "gr")
+    local locations = flatten_locations(results)
+    if lhs == "gd" then
+      locations = follow_typescript_imports(real_buf, locations)
+    end
+    open_locations(locations, spec.title, lhs ~= "gr", tabpage, session)
   end)
 end
 

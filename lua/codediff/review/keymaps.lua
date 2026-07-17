@@ -25,6 +25,30 @@ local function clear_buffer_keymaps(bufnr)
   end
 end
 
+local function get_explorer_owned_keymaps(bufnr)
+  local lifecycle = require("codediff.ui.lifecycle")
+  local session = lifecycle.get_session(vim.api.nvim_get_current_tabpage())
+  if not session or not session.explorer or session.explorer.bufnr ~= bufnr then
+    return {}
+  end
+
+  local owned = {}
+  local explorer_keymaps = require("codediff.config").options.keymaps.explorer or {}
+  local function add(key)
+    if type(key) == "table" then
+      for _, nested in ipairs(key) do
+        add(nested)
+      end
+    elseif is_enabled(key) then
+      owned[key] = true
+    end
+  end
+  for _, key in pairs(explorer_keymaps) do
+    add(key)
+  end
+  return owned
+end
+
 local function format_key(key)
   local inner = key:match("^<(.+)>$")
   if not inner then
@@ -159,16 +183,17 @@ local function set_buffer_keymaps(bufnr)
   local km = cfg.keymaps
   local readonly = cfg.codediff.readonly
   local mapped = {}
+  local explorer_owned_keymaps = get_explorer_owned_keymaps(bufnr)
 
   local function set(lhs, rhs, desc)
-    if is_enabled(lhs) then
+    if is_enabled(lhs) and not explorer_owned_keymaps[lhs] then
       vim.keymap.set("n", lhs, rhs, { buffer = bufnr, noremap = true, silent = true, nowait = true, desc = desc })
       table.insert(mapped, { "n", lhs })
     end
   end
 
   local function set_visual(lhs, rhs, desc)
-    if is_enabled(lhs) then
+    if is_enabled(lhs) and not explorer_owned_keymaps[lhs] then
       vim.keymap.set("x", lhs, rhs, { buffer = bufnr, noremap = true, silent = true, nowait = true, desc = desc })
       table.insert(mapped, { "x", lhs })
     end
