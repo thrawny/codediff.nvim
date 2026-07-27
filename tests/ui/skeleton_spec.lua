@@ -341,6 +341,79 @@ describe("skeleton view toggle (integration)", function()
     assert.is_nil(session.skeleton.saved[orig_win])
   end)
 
+  it("hunk navigation skips changes hidden inside folds", function()
+    local navigation = require("codediff.ui.view.navigation")
+    vim.api.nvim_set_current_win(mod_win)
+    vim.api.nvim_win_set_cursor(mod_win, { 1, 0 })
+
+    -- Skeleton mode leaves beta's body open (it holds the change), so the
+    -- hunk on line 10 is reachable
+    assert.is_true(skeleton.enable(tabpage))
+    assert.is_true(navigation.next_hunk())
+    assert.equals(10, vim.api.nvim_win_get_cursor(mod_win)[1])
+
+    -- Seams mode folds beta's body, hiding the only hunk: nothing to jump to
+    skeleton.reset(tabpage)
+    assert.is_true(skeleton.enable(tabpage, { mode = "seams" }))
+    vim.api.nvim_win_set_cursor(mod_win, { 1, 0 })
+    assert.is_false(navigation.next_hunk())
+    assert.equals(1, vim.api.nvim_win_get_cursor(mod_win)[1])
+    assert.is_false(navigation.prev_hunk())
+  end)
+
+  it("moves off a hidden landing spot when a new file is selected", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.layout = "inline"
+    session.original_win = mod_win
+    session.modified_win = mod_win
+    session.modified_path = "first.lua"
+    -- Two hunks: one inside alpha's body (hidden in seams mode), one on the
+    -- top-level return that stays visible
+    session.stored_diff_result = {
+      changes = {
+        { original = { start_line = 5, end_line = 6 }, modified = { start_line = 5, end_line = 6 } },
+        { original = { start_line = 13, end_line = 14 }, modified = { start_line = 13, end_line = 14 } },
+      },
+    }
+    assert.is_true(skeleton.enable(tabpage, { mode = "seams", silent = true }))
+
+    -- Simulate selecting another file that lands on its first (hidden) change
+    skeleton.reset(tabpage)
+    session.modified_path = "second.lua"
+    vim.api.nvim_win_set_cursor(mod_win, { 5, 0 })
+    assert.is_true(skeleton.enable(tabpage, { mode = "seams", silent = true }))
+
+    -- Cursor advanced to the visible hunk instead of sitting inside the fold
+    assert.equals(13, vim.api.nvim_win_get_cursor(mod_win)[1])
+  end)
+
+  it("leaves the cursor alone when the same file re-renders", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.layout = "inline"
+    session.original_win = mod_win
+    session.modified_win = mod_win
+    session.modified_path = "same.lua"
+
+    assert.is_true(skeleton.enable(tabpage, { mode = "seams", silent = true }))
+    vim.api.nvim_win_set_cursor(mod_win, { 5, 0 })
+
+    -- A live edit re-applies folds for the file already on screen
+    skeleton.on_diff_refresh(tabpage)
+    assert.equals(5, vim.api.nvim_win_get_cursor(mod_win)[1])
+  end)
+
+  it("hunk navigation reaches every hunk once the view is off", function()
+    local navigation = require("codediff.ui.view.navigation")
+    vim.api.nvim_set_current_win(mod_win)
+
+    assert.is_true(skeleton.enable(tabpage, { mode = "seams" }))
+    skeleton.disable(tabpage)
+
+    vim.api.nvim_win_set_cursor(mod_win, { 1, 0 })
+    assert.is_true(navigation.next_hunk())
+    assert.equals(10, vim.api.nvim_win_get_cursor(mod_win)[1])
+  end)
+
   it("inline layout never folds deletion anchor lines", function()
     -- Pure deletion anchored inside alpha's body (modified line 5)
     local session = session_mod.get_active_diffs()[tabpage]

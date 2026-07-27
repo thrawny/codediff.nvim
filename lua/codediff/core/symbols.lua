@@ -270,7 +270,16 @@ end
 ---@param bufnr number
 ---@return string|nil
 function M.get_buf_lang(bufnr)
-  return resolve_lang(vim.b[bufnr].codediff_filetype or vim.bo[bufnr].filetype)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return nil
+  end
+  local lang = resolve_lang(vim.b[bufnr].codediff_filetype or vim.bo[bufnr].filetype)
+  if lang then
+    return lang
+  end
+  -- Fall back to the path for buffers whose filetype was never detected
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  return name ~= "" and M.get_path_lang(name) or nil
 end
 
 ---Resolve the treesitter language for a file path, or nil when unknown.

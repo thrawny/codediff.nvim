@@ -6,6 +6,7 @@ local M = {}
 
 local lifecycle = require("codediff.ui.lifecycle")
 local symbols_mod = require("codediff.core.symbols")
+local hunk_range = require("codediff.ui.hunk_range")
 
 -- ============================================================================
 -- Pure computation (unit-testable)
@@ -401,6 +402,43 @@ local function enable_side_by_side(session, diff_result, tabpage, mode, silent)
   return true
 end
 
+---Keep the cursor out of content this view hides after a file switch.
+---Selecting a file jumps to its first change before these folds exist, so
+---that landing spot can end up inside a folded body; move on to the first
+---change that is actually visible. Only ever called for a newly selected
+---file: on the file already on screen the cursor is the user's own, and a
+---re-apply triggered by a live edit must not move it.
+local function reveal_cursor(session)
+  local win = session.modified_win
+  if not (win and vim.api.nvim_win_is_valid(win)) then
+    return
+  end
+
+  local function fold_at(line)
+    return vim.api.nvim_win_call(win, function()
+      return vim.fn.foldclosed(line)
+    end)
+  end
+
+  local fold_start = fold_at(vim.api.nvim_win_get_cursor(win)[1])
+  if fold_start == -1 then
+    return
+  end
+
+  local changes = session.stored_diff_result and session.stored_diff_result.changes or {}
+  local line_count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(win))
+  for _, mapping in ipairs(changes) do
+    local target = hunk_range.target_line(mapping.modified, line_count)
+    if fold_at(target) == -1 then
+      pcall(vim.api.nvim_win_set_cursor, win, { target, 0 })
+      return
+    end
+  end
+
+  -- Nothing visible to land on: the fold's own first line is at least shown
+  pcall(vim.api.nvim_win_set_cursor, win, { fold_start, 0 })
+end
+
 ---@param tabpage number
 ---@param opts? { mode?: "skeleton"|"seams", silent?: boolean } silent suppresses notifications (auto re-apply)
 function M.enable(tabpage, opts)
@@ -425,8 +463,15 @@ function M.enable(tabpage, opts)
   end
 
   if ok then
+    -- Tracked across reset (unlike session.skeleton) so a re-apply can tell a
+    -- file switch from a rebuild of the file already on screen.
+    local previous_path = session.skeleton_path
+    session.skeleton_path = session.modified_path
     session.skeleton_want = mode
     ensure_autocmds()
+    if previous_path ~= nil and previous_path ~= session.modified_path then
+      reveal_cursor(session)
+    end
   end
   return ok
 end
@@ -451,6 +496,7 @@ function M.disable(tabpage)
   local session = lifecycle.get_session(tabpage)
   if session then
     session.skeleton_want = nil
+    session.skeleton_path = nil
   end
   if not session or not session.skeleton then
     return

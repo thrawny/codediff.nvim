@@ -42,6 +42,35 @@ local function get_hunk_target(session)
   return target_win, is_original
 end
 
+---Hunks reachable by navigation, as { index, line } in buffer order.
+---The skeleton view deliberately hides changes inside folded bodies, so
+---jumping into one would defeat the view; those hunks are dropped here and
+---next_hunk_or_file falls through to the next file instead. Without the
+---skeleton view every hunk stays reachable, including under user folds.
+local function navigable_hunks(session, diff_result, target_win, is_original, line_count)
+  local skip_folded = session.skeleton ~= nil
+  local hunks = {}
+  for i, mapping in ipairs(diff_result.changes) do
+    local range = is_original and mapping.original or mapping.modified
+    local target_line = hunk_range.target_line(range, line_count)
+    local folded = skip_folded and vim.api.nvim_win_call(target_win, function()
+      return vim.fn.foldclosed(target_line) ~= -1
+    end)
+    if not folded then
+      table.insert(hunks, { index = i, line = target_line })
+    end
+  end
+  return hunks
+end
+
+local function jump_to_hunk(target_win, hunk, total)
+  pcall(vim.api.nvim_win_set_cursor, target_win, { hunk.line, 0 })
+  vim.api.nvim_set_current_win(target_win)
+  center_window(target_win)
+  echo_hunk_message({ { string.format("Hunk %d of %d", hunk.index, total), "None" } })
+  return true
+end
+
 -- Navigate to next hunk in the current diff view
 -- Returns true if navigation succeeded, false otherwise
 function M.next_hunk()
@@ -65,31 +94,24 @@ function M.next_hunk()
   local current_line = cursor[1]
   local line_count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(target_win))
 
+  local hunks = navigable_hunks(session, diff_result, target_win, is_original, line_count)
+  if #hunks == 0 then
+    return false
+  end
+
   -- Find next hunk after current line
-  for i, mapping in ipairs(diff_result.changes) do
-    local range = is_original and mapping.original or mapping.modified
-    local target_line = hunk_range.target_line(range, line_count)
-    if target_line > current_line then
-      pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
-      vim.api.nvim_set_current_win(target_win)
-      center_window(target_win)
-      echo_hunk_message({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } })
-      return true
+  for _, hunk in ipairs(hunks) do
+    if hunk.line > current_line then
+      return jump_to_hunk(target_win, hunk, #diff_result.changes)
     end
   end
 
   -- Wrap around to first hunk (if cycling enabled)
   if config.options.diff.cycle_next_hunk then
-    local first_hunk = diff_result.changes[1]
-    local range = is_original and first_hunk.original or first_hunk.modified
-    local target_line = hunk_range.target_line(range, line_count)
-    pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
-    vim.api.nvim_set_current_win(target_win)
-    center_window(target_win)
-    echo_hunk_message({ { string.format("Hunk 1 of %d", #diff_result.changes), "None" } })
-    return true
+    return jump_to_hunk(target_win, hunks[1], #diff_result.changes)
   else
-    echo_hunk_message({ { string.format("Last hunk (%d of %d)", #diff_result.changes, #diff_result.changes), "WarningMsg" } })
+    local last = hunks[#hunks]
+    echo_hunk_message({ { string.format("Last hunk (%d of %d)", last.index, #diff_result.changes), "WarningMsg" } })
     return false
   end
 end
@@ -117,32 +139,23 @@ function M.prev_hunk()
   local current_line = cursor[1]
   local line_count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(target_win))
 
+  local hunks = navigable_hunks(session, diff_result, target_win, is_original, line_count)
+  if #hunks == 0 then
+    return false
+  end
+
   -- Find previous hunk before current line (search backwards)
-  for i = #diff_result.changes, 1, -1 do
-    local mapping = diff_result.changes[i]
-    local range = is_original and mapping.original or mapping.modified
-    local target_line = hunk_range.target_line(range, line_count)
-    if target_line < current_line then
-      pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
-      vim.api.nvim_set_current_win(target_win)
-      center_window(target_win)
-      echo_hunk_message({ { string.format("Hunk %d of %d", i, #diff_result.changes), "None" } })
-      return true
+  for i = #hunks, 1, -1 do
+    if hunks[i].line < current_line then
+      return jump_to_hunk(target_win, hunks[i], #diff_result.changes)
     end
   end
 
   -- Wrap around to last hunk (if cycling enabled)
   if config.options.diff.cycle_next_hunk then
-    local last_hunk = diff_result.changes[#diff_result.changes]
-    local range = is_original and last_hunk.original or last_hunk.modified
-    local target_line = hunk_range.target_line(range, line_count)
-    pcall(vim.api.nvim_win_set_cursor, target_win, { target_line, 0 })
-    vim.api.nvim_set_current_win(target_win)
-    center_window(target_win)
-    echo_hunk_message({ { string.format("Hunk %d of %d", #diff_result.changes, #diff_result.changes), "None" } })
-    return true
+    return jump_to_hunk(target_win, hunks[#hunks], #diff_result.changes)
   else
-    echo_hunk_message({ { string.format("First hunk (1 of %d)", #diff_result.changes), "WarningMsg" } })
+    echo_hunk_message({ { string.format("First hunk (%d of %d)", hunks[1].index, #diff_result.changes), "WarningMsg" } })
     return false
   end
 end
