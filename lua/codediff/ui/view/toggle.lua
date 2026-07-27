@@ -99,6 +99,13 @@ function M.toggle(tabpage)
     return false
   end
 
+  -- Layout switches recreate windows/buffers; drop any active skeleton folds.
+  -- Skeleton state can only exist if the module is already loaded.
+  local skeleton = package.loaded["codediff.ui.view.skeleton"]
+  if skeleton then
+    skeleton.reset(tabpage)
+  end
+
   local target_layout = session.layout == "inline" and "side-by-side" or "inline"
   local normalize = target_layout == "inline" and normalize_inline_layout or normalize_side_by_side_layout
   local previous_layout = session.layout

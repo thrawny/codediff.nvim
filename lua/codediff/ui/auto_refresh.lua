@@ -100,6 +100,14 @@ local function do_diff_update(bufnr, skip_watcher_check)
     -- Update stored diff result in lifecycle (critical for hunk navigation and do/dp)
     lifecycle.update_diff_result(tabpage, lines_diff)
 
+    -- Skeleton folds were computed against the previous diff; rebuild them
+    -- (or drop them if the skeleton view is off). Skeleton state can only
+    -- exist if the module is already loaded.
+    local skeleton = package.loaded["codediff.ui.view.skeleton"]
+    if skeleton then
+      skeleton.on_diff_refresh(tabpage)
+    end
+
     -- Check if this is an inline mode session
     local session = lifecycle.get_session(tabpage)
     if session and session.layout == "inline" then

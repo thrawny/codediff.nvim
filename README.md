@@ -44,6 +44,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 - **Pierre-based diff engine** — the same [@pierre/diffs](https://github.com/pierredotco/diffs) core that powers [Hunk](https://github.com/modem-dev/hunk), running in a long-lived Bun sidecar process
 - **Async git operations** - non-blocking file retrieval from git
 - **Moved code detection** — identifies blocks of code that moved within a file, with visual indicators (highlights, signs, annotations) matching VSCode's experimental `showMoves` feature (opt-in)
+- **Skeleton view** — `s` cycles off → skeleton → seams-only. Skeleton folds unchanged function bodies via treesitter, so a diff reads as signatures + changed code; seams-only additionally folds changed bodies, leaving just signature/declaration-level changes visible for a quick first scan. Works in both layouts (side-by-side mirrors folds across panes to preserve alignment) and stays on across file switches until toggled off
 
 ## Installation
 
@@ -183,6 +184,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
         show_help = "g?",   -- Show floating window with available keymaps
         align_move = "gm", -- Temporarily align moved code blocks across panes
         toggle_layout = "t", -- Toggle between side-by-side and inline layout
+        toggle_skeleton = "s", -- Cycle skeleton view (off/skeleton/seams-only); sticky across file switches
       },
       explorer = {
         select = "<CR>",    -- Open diff for selected file
