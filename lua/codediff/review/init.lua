@@ -141,6 +141,43 @@ function M.open_commits(rev1, rev2)
   end)
 end
 
+function M.open_merge_base(base_revision, target_revision)
+  if not base_revision or base_revision == "" then
+    vim.notify("A base revision is required", vim.log.levels.ERROR, { title = "codediff.review" })
+    return false
+  end
+
+  target_revision = target_revision or "HEAD"
+  local current_buf = vim.api.nvim_get_current_buf()
+  local current_path = vim.api.nvim_buf_get_name(current_buf)
+  if current_path == "" or vim.bo[current_buf].buftype ~= "" then
+    current_path = vim.fn.getcwd()
+  end
+
+  local git = require("codediff.core.git")
+  git.get_git_root(current_path, function(root_err, git_root)
+    if root_err then
+      vim.schedule(function()
+        vim.notify(root_err, vim.log.levels.ERROR, { title = "codediff.review" })
+      end)
+      return
+    end
+
+    git.get_merge_base(base_revision, target_revision, git_root, function(merge_err, merge_base)
+      if merge_err then
+        vim.schedule(function()
+          vim.notify(merge_err, vim.log.levels.ERROR, { title = "codediff.review" })
+        end)
+        return
+      end
+      vim.schedule(function()
+        open_codediff_with_revisions(merge_base, target_revision)
+      end)
+    end)
+  end)
+  return true
+end
+
 function M.open_pr(number)
   require("codediff.review.pr").open(number)
 end
