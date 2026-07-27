@@ -8,6 +8,7 @@ local nodes_module = require("codediff.ui.explorer.nodes")
 local tree_module = require("codediff.ui.explorer.tree")
 local keymaps_module = require("codediff.ui.explorer.keymaps")
 local refresh_module = require("codediff.ui.explorer.refresh")
+local seam_module = require("codediff.ui.explorer.seam")
 local welcome = require("codediff.ui.welcome")
 
 local function should_show_welcome(explorer)
@@ -618,6 +619,14 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
 
   -- Setup auto-refresh
   refresh_module.setup_auto_refresh(explorer, tabpage)
+
+  -- Classify modified files as seam vs implementation-only in the background;
+  -- refresh the tree once results arrive so impl-only files collapse away.
+  seam_module.classify(explorer, status_result, function(changed)
+    if changed > 0 then
+      refresh_module.refresh(explorer)
+    end
+  end)
 
   -- Re-render on window resize for dynamic width
   vim.api.nvim_create_autocmd("WinResized", {
