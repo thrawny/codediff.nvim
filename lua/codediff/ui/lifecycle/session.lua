@@ -8,6 +8,15 @@ local accessors = require("codediff.ui.lifecycle.accessors")
 local welcome_window = require("codediff.ui.view.welcome_window")
 local hunk_range = require("codediff.ui.hunk_range")
 
+local FILE_STATUS = {
+  M = { symbol = "M", highlight = "CodeDiffStatusModified" },
+  A = { symbol = "A", highlight = "CodeDiffStatusAdded" },
+  D = { symbol = "D", highlight = "CodeDiffStatusDeleted" },
+  R = { symbol = "R", highlight = "CodeDiffStatusRenamed" },
+  ["??"] = { symbol = "??", highlight = "CodeDiffStatusUntracked" },
+  ["!"] = { symbol = "!", highlight = "CodeDiffStatusConflict" },
+}
+
 -- Track active diff sessions
 -- Structure: {
 --   tabpage_id = {
@@ -56,7 +65,12 @@ local function build_winbar(sess, win)
       local current = sess.explorer.current_file_path
       for i, file in ipairs(all_files) do
         if file.data and file.data.path == current then
-          table.insert(parts, string.format("󰈔 %d/%d  %s", i, #all_files, current))
+          local file_part = string.format("󰈔 %d/%d  %s", i, #all_files, current)
+          local status = winbar_config.show_file_status ~= false and FILE_STATUS[file.data.status] or nil
+          if status then
+            file_part = string.format("%%#%s#%s%%*  %s", status.highlight, status.symbol, file_part)
+          end
+          table.insert(parts, file_part)
           break
         end
       end

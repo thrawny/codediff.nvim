@@ -213,6 +213,18 @@ describe("cross-file hunk navigation", function()
     vim.api.nvim_win_set_cursor(session.modified_win, { line_count, 0 })
     vim.api.nvim_exec_autocmds("CursorMoved", {})
     assert.is_true(vim.wo[session.modified_win].winbar:find("1/1", 1, true) ~= nil)
+    assert.is_true(vim.wo[session.modified_win].winbar:find("%#CodeDiffStatusModified#M%*", 1, true) ~= nil)
+
+    local current_file = require("codediff.ui.explorer.refresh").get_all_files(explorer.tree)[1]
+    for status, expected in pairs({
+      A = "%#CodeDiffStatusAdded#A%*",
+      D = "%#CodeDiffStatusDeleted#D%*",
+      R = "%#CodeDiffStatusRenamed#R%*",
+    }) do
+      current_file.data.status = status
+      vim.api.nvim_exec_autocmds("CursorMoved", {})
+      assert.is_true(vim.wo[session.modified_win].winbar:find(expected, 1, true) ~= nil)
+    end
 
     navigation.next_hunk_or_file()
     wait_for_file_and_hunk(tabpage, "b.txt", 1)

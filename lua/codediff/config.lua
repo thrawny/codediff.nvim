@@ -49,6 +49,7 @@ M.defaults = {
     winbar = {
       enabled = false, -- Show current file and hunk position in diff window winbars
       show_file_index = true,
+      show_file_status = true,
       show_hunk_index = true,
     },
   },
