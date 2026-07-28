@@ -106,6 +106,8 @@ local function open_codediff_with_revisions(rev1, rev2)
 
   if rev1 and rev2 then
     vim.cmd("CodeDiff " .. rev1 .. " " .. rev2)
+  elseif rev1 then
+    vim.cmd("CodeDiff " .. rev1)
   else
     vim.cmd("CodeDiff")
   end
@@ -148,6 +150,12 @@ function M.open_merge_base(base_revision, target_revision)
   end
 
   target_revision = target_revision or "HEAD"
+  local include_working_tree = target_revision == "WORKING"
+  local merge_target = include_working_tree and "HEAD" or target_revision
+  local review_target = target_revision
+  if include_working_tree then
+    review_target = nil
+  end
   local current_buf = vim.api.nvim_get_current_buf()
   local current_path = vim.api.nvim_buf_get_name(current_buf)
   if current_path == "" or vim.bo[current_buf].buftype ~= "" then
@@ -163,7 +171,7 @@ function M.open_merge_base(base_revision, target_revision)
       return
     end
 
-    git.get_merge_base(base_revision, target_revision, git_root, function(merge_err, merge_base)
+    git.get_merge_base(base_revision, merge_target, git_root, function(merge_err, merge_base)
       if merge_err then
         vim.schedule(function()
           vim.notify(merge_err, vim.log.levels.ERROR, { title = "codediff.review" })
@@ -171,7 +179,7 @@ function M.open_merge_base(base_revision, target_revision)
         return
       end
       vim.schedule(function()
-        open_codediff_with_revisions(merge_base, target_revision)
+        open_codediff_with_revisions(merge_base, review_target)
       end)
     end)
   end)

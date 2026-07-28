@@ -87,6 +87,40 @@ describe("codediff.review foundation", function()
     assert.is_not_nil(session)
   end)
 
+  it("includes dirty files in merge-base working-tree reviews", function()
+    repo.git("branch base")
+    repo.write_file("file1.txt", { "committed branch change" })
+    repo.git("add file1.txt")
+    repo.git('commit -m "branch change"')
+    repo.write_file("dirty.txt", { "untracked working-tree change" })
+
+    vim.fn.chdir(repo.dir)
+    vim.cmd("edit " .. repo.path("file1.txt"))
+    require("codediff.review").open_merge_base("base", "WORKING")
+
+    local lifecycle = require("codediff.ui.lifecycle")
+    local tabpage
+    local ready = vim.wait(10000, function()
+      for _, candidate in ipairs(vim.api.nvim_list_tabpages()) do
+        local session = lifecycle.get_session(candidate)
+        if session and session.explorer and session.codediff_review_active and session.stored_diff_result then
+          tabpage = candidate
+          return true
+        end
+      end
+      return false
+    end, 50)
+    assert.is_true(ready, "working-tree merge-base review should open")
+
+    local session = lifecycle.get_session(tabpage)
+    local files = require("codediff.ui.explorer.refresh").get_all_files(session.explorer.tree)
+    local paths = vim.tbl_map(function(file)
+      return file.data.path
+    end, files)
+    table.sort(paths)
+    assert.same({ "dirty.txt", "file1.txt" }, paths)
+  end)
+
   it("preserves explorer keymaps when entering the file panel", function()
     local tabpage = open_review(repo)
     vim.api.nvim_set_current_tabpage(tabpage)

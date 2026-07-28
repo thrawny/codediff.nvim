@@ -47,7 +47,7 @@ function M.setup_auto_refresh(explorer, tabpage)
     refresh_timer = vim.fn.timer_start(debounce_ms, function()
       -- Only refresh while this Neovim window and codediff tab are focused.
       -- If repo activity happens elsewhere, mark pending and catch up on TabEnter/FocusGained.
-      if focus.is_tab_focused(tabpage) and not explorer.is_hidden then
+      if focus.is_tab_focused(tabpage) then
         M.refresh(explorer)
         local auto_refresh = require("codediff.ui.auto_refresh")
         auto_refresh.sync_mutable_buffers(tabpage)
@@ -68,6 +68,21 @@ function M.setup_auto_refresh(explorer, tabpage)
       end
     end,
   })
+
+  -- Refresh the file inventory after files are written anywhere in this repository.
+  if explorer.git_root then
+    vim.api.nvim_create_autocmd("BufWritePost", {
+      group = group,
+      callback = function(args)
+        local path = vim.api.nvim_buf_get_name(args.buf)
+        local root = vim.fs.normalize(explorer.git_root)
+        path = path ~= "" and vim.fs.normalize(path) or ""
+        if path == root or path:sub(1, #root + 1) == root .. "/" then
+          debounced_refresh()
+        end
+      end,
+    })
+  end
 
   -- Watch .git directory for changes (git mode only)
   -- Dir mode skips this - relies on BufEnter refresh only
@@ -101,7 +116,7 @@ function M.setup_auto_refresh(explorer, tabpage)
                 if watch_err then
                   return
                 end
-                if not vim.api.nvim_tabpage_is_valid(tabpage) or explorer.is_hidden then
+                if not vim.api.nvim_tabpage_is_valid(tabpage) then
                   return
                 end
                 if focus.is_tab_focused(tabpage) then
@@ -131,11 +146,12 @@ function M.setup_auto_refresh(explorer, tabpage)
     callback = cleanup,
   })
 
-  -- Flush pending refresh when returning to the focused codediff tab/window.
+  -- Refresh when returning to the codediff tab/window. This catches working-tree
+  -- changes made by external tools, which do not touch .git.
   vim.api.nvim_create_autocmd({ "TabEnter", "FocusGained" }, {
     group = group,
     callback = function()
-      if explorer._pending_refresh and focus.is_tab_focused(tabpage) then
+      if focus.is_tab_focused(tabpage) then
         explorer._pending_refresh = nil
         debounced_refresh()
       end
@@ -225,19 +241,9 @@ end
 function M.refresh(explorer)
   local git = require("codediff.core.git")
 
-  -- Skip refresh if explorer is hidden
-  if explorer.is_hidden then
+  if not explorer.bufnr or not vim.api.nvim_buf_is_valid(explorer.bufnr) then
     return
   end
-
-  -- Verify window is still valid before accessing
-  if not vim.api.nvim_win_is_valid(explorer.winid) then
-    return
-  end
-
-  -- Get current selection to restore it after refresh
-  local current_node = explorer.tree:get_node()
-  local current_path = current_node and current_node.data and current_node.data.path
 
   -- Collect fold state before async operation
   local fold_state = collect_fold_state(explorer.tree)
