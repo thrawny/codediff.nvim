@@ -3,7 +3,6 @@ local M = {}
 
 local config = require("codediff.config")
 local focus = require("codediff.ui.focus")
-local seam_module = require("codediff.ui.explorer.seam")
 local tree_module = require("codediff.ui.explorer.tree")
 local welcome = require("codediff.ui.welcome")
 -- Setup auto-refresh triggers for explorer
@@ -256,8 +255,7 @@ function M.refresh(explorer)
       end
 
       -- Rebuild tree nodes using same structure as create_tree_data
-      local root_nodes =
-        tree_module.create_tree_data(status_result, explorer.git_root, explorer.base_revision, not explorer.git_root, explorer.visible_groups, explorer.seam_results)
+      local root_nodes = tree_module.create_tree_data(status_result, explorer.git_root, explorer.base_revision, not explorer.git_root, explorer.visible_groups)
 
       -- Expand groups unless they are intended to start collapsed.
       for _, node in ipairs(root_nodes) do
@@ -373,15 +371,6 @@ function M.refresh(explorer)
           show_welcome_page(explorer)
         end
       end
-
-      -- Reclassify modified files as seam vs implementation-only; rebuild the
-      -- tree once more if any classification changed (converges: the second
-      -- pass finds everything cached and reports zero changes).
-      seam_module.classify(explorer, status_result, function(changed)
-        if changed > 0 then
-          M.refresh(explorer)
-        end
-      end)
     end)
   end
 

@@ -45,7 +45,6 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 - **Async git operations** - non-blocking file retrieval from git
 - **Moved code detection** — identifies blocks of code that moved within a file, with visual indicators (highlights, signs, annotations) matching VSCode's experimental `showMoves` feature (opt-in)
 - **Skeleton view** — `s` cycles off → skeleton → seams-only. Skeleton folds unchanged function bodies via treesitter, so a diff reads as signatures + changed code; seams-only additionally folds changed bodies, leaving just signature/declaration-level changes visible for a quick first scan. Works in both layouts (side-by-side mirrors folds across panes to preserve alignment) and stays on across file switches until toggled off
-- **Implementation-only grouping** — the explorer classifies each modified file and moves files whose diff never touches a signature, declaration, or other top-level code into a collapsed "Implementation-only Changes" group (like generated files); disable with `explorer.collapse_impl_only = false`
 
 ## Installation
 
@@ -144,7 +143,6 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
           "zz_generated.*",
         },
       },
-      collapse_impl_only = true, -- Collapse files with implementation-only changes (no signature/declaration changes) into their own group
       focus_on_select = false,  -- Jump to modified pane after selecting a file (default: stay in explorer)
       visible_groups = {       -- Which groups to show (can be toggled at runtime)
         staged = true,

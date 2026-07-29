@@ -79,7 +79,6 @@ M.defaults = {
         "zz_generated.*",
       },
     },
-    collapse_impl_only = true, -- Move files with implementation-only changes (no signature/declaration changes) into a collapsed group
     focus_on_select = false, -- Jump to modified pane after selecting a file (default: stay in explorer)
     flatten_dirs = true, -- Flatten single-child directory chains in tree view (e.g., src/components/ui/)
     visible_groups = { -- Which groups to show in explorer (can be toggled at runtime)
