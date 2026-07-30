@@ -121,6 +121,26 @@ describe("codediff.review foundation", function()
     assert.same({ "dirty.txt", "file1.txt" }, paths)
   end)
 
+  it("opens the first rendered file when the explorer uses tree view", function()
+    repo.write_file("a-root.txt", { "original root" })
+    repo.write_file("z-dir/nested.txt", { "original nested" })
+    repo.git("add a-root.txt z-dir/nested.txt")
+    repo.git('commit -m "add tree files"')
+    repo.write_file("a-root.txt", { "changed root" })
+    repo.write_file("z-dir/nested.txt", { "changed nested" })
+
+    local config = require("codediff.config")
+    local original_view_mode = config.options.explorer.view_mode
+    config.options.explorer.view_mode = "tree"
+    local tabpage = open_review(repo, "a-root.txt")
+    config.options.explorer.view_mode = original_view_mode
+
+    local session = require("codediff.ui.lifecycle").get_session(tabpage)
+    local files = require("codediff.ui.explorer.refresh").get_all_files(session.explorer.tree)
+    assert.equals("z-dir/nested.txt", files[1].data.path)
+    assert.equals(files[1].data.path, session.explorer.current_file_path)
+  end)
+
   it("preserves explorer keymaps when entering the file panel", function()
     local tabpage = open_review(repo)
     vim.api.nvim_set_current_tabpage(tabpage)

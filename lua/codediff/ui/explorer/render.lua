@@ -555,10 +555,19 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
     return nil, nil
   end
 
-  -- Select initial file: prefer focus_file (current buffer) if changed, else first non-generated file.
+  -- Select initial file. Tree view follows the rendered tree order (directories
+  -- first), while list view prefers the current buffer when it is changed.
   local initial_file, initial_file_group
+  if explorer_config.view_mode == "tree" then
+    local tree_files = refresh_module.get_all_files(tree)
+    if tree_files[1] then
+      initial_file = tree_files[1].data
+      initial_file_group = initial_file.group
+    end
+  end
+
   local focus_file = opts and opts.focus_file
-  if focus_file then
+  if not initial_file and focus_file then
     initial_file, initial_file_group = find_file_in_status(focus_file)
   end
   if not initial_file then
