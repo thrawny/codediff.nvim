@@ -54,7 +54,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 - [Bun](https://bun.sh) runtime (`curl -fsSL https://bun.sh/install | bash`)
 - Git (for git diff features)
 
-**No compiler required!** The plugin installs its engine dependencies automatically with `bun install` on first use.
+**No compiler or dependency installation required.** The Bun engine and its runtime dependencies ship as a single JavaScript bundle.
 
 ### Using lazy.nvim
 
@@ -240,28 +240,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 }
 ```
 
-The C library will be downloaded automatically on first use. No `build` step needed!
-
-### Managing Library Installation
-
-The plugin automatically manages the C library installation:
-
-**Automatic Updates:**
-- The library is automatically downloaded on first use
-- When you update the plugin to a new version, the library is automatically updated to match
-- No manual intervention required!
-
-**Manual Installation Commands:**
-```vim
-" Install/update the library manually
-:CodeDiff install
-
-" Force reinstall (useful for troubleshooting)
-:CodeDiff install!
-```
-
-**Version Management:**
-The installer reads the `VERSION` file to download the matching library version from GitHub releases. This ensures compatibility between the Lua code and C library.
+The bundled engine runs directly from the plugin checkout. No build step is needed.
 
 ### Manual Installation
 
@@ -276,18 +255,6 @@ git clone https://github.com/esmuellert/codediff.nvim ~/.local/share/nvim/codedi
 ```lua
 vim.opt.rtp:append("~/.local/share/nvim/codediff.nvim")
 ```
-
-3. **Install the diff engine dependencies:**
-
-The plugin's diff engine is a Bun/TypeScript sidecar in `engine/`. On first use
-the plugin runs `bun install` there automatically; to do it manually:
-
-```bash
-cd ~/.local/share/nvim/codediff.nvim/engine
-bun install
-```
-
-Or from inside Neovim: `:CodeDiff install`
 
 ## Usage
 
@@ -668,7 +635,7 @@ highlights = {
 ### Building
 
 ```bash
-just build             # bun install in engine/
+just build             # install dev dependencies and rebuild engine/dist/main.js
 ```
 
 ### Testing

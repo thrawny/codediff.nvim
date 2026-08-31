@@ -72,27 +72,13 @@ local function ensure_engine()
     return
   end
 
-  if vim.fn.executable("bun") ~= 1 then
-    error(
-      "codediff.nvim requires the Bun runtime for its diff engine.\n"
-        .. "Install it from https://bun.sh (e.g. `curl -fsSL https://bun.sh/install | bash`)\n"
-        .. "and make sure `bun` is on your PATH."
-    )
+  if not installer.has_bun() then
+    error("codediff.nvim requires the Bun runtime for its diff engine.\n" .. "Install it from https://bun.sh and make sure `bun` is on your PATH.")
   end
 
-  if not vim.env.VSCODE_DIFF_NO_AUTO_INSTALL and installer.needs_update() then
-    local success, err = installer.install({ silent = false })
-    if not success then
-      error(
-        string.format(
-          "codediff engine dependencies are missing and automatic installation failed: %s\n"
-            .. "Try manual install: run `bun install` in %s\n"
-            .. "or `:CodeDiff install!` inside Neovim.",
-          err or "unknown error",
-          engine_dir
-        )
-      )
-    end
+  local engine_path = installer.get_engine_path()
+  if vim.fn.filereadable(engine_path) ~= 1 then
+    error("codediff.nvim bundled engine not found at: " .. engine_path .. ". Reinstall or update the plugin.")
   end
 
   state.stdout_buffer = ""
@@ -104,7 +90,7 @@ local function ensure_engine()
   local stderr = uv.new_pipe(false)
 
   local handle, spawn_err = uv.spawn("bun", {
-    args = { "run", engine_dir .. "/src/main.ts" },
+    args = { installer.get_engine_path() },
     cwd = engine_dir,
     stdio = { stdin, stdout, stderr },
   }, function()

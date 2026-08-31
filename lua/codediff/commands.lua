@@ -770,21 +770,14 @@ function M.vscode_diff(opts)
 
     handle_history(range, file_path, flags, line_range, global_opts)
   elseif subcommand == "install" or subcommand == "install!" then
-    -- :CodeDiff install or :CodeDiff install!
-    -- Handle both :CodeDiff! install and :CodeDiff install!
-    local force = opts.bang or subcommand == "install!"
+    -- Retained for compatibility now that the engine ships with the plugin.
     local installer = require("codediff.core.installer")
-
-    if force then
-      vim.notify("Reinstalling codediff engine...", vim.log.levels.INFO)
-    end
-
-    local success, err = installer.install({ force = force, silent = false })
+    local success, err = installer.install({ silent = true })
 
     if success then
-      vim.notify("codediff engine installation successful!", vim.log.levels.INFO)
+      vim.notify("codediff bundled engine is ready", vim.log.levels.INFO)
     else
-      vim.notify("Installation failed: " .. (err or "unknown error"), vim.log.levels.ERROR)
+      vim.notify("Engine check failed: " .. (err or "unknown error"), vim.log.levels.ERROR)
     end
   else
     -- :CodeDiff <revision> [revision2] - opens explorer mode

@@ -5,9 +5,9 @@
 default:
     @just --list
 
-# Install engine dependencies
+# Install development dependencies and bundle the engine
 build:
-    cd engine && bun install
+    cd engine && bun install --frozen-lockfile && bun run bundle
 
 # === Tests ===
 
@@ -61,6 +61,6 @@ bump-major:
 bump-prerelease:
     node scripts/bump_version.mjs prerelease
 
-# Remove engine dependencies
+# Remove development dependencies
 clean:
     rm -rf engine/node_modules

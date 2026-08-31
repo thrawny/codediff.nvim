@@ -22,8 +22,8 @@ COMMANDS                                                  *codediff-commands*
 
 :CodeDiff install
 :CodeDiff install!
-    Manually install/update the diff engine dependencies (runs `bun install`
-    in the plugin's engine/ directory; optional; auto-installed on use).
+    Check that Bun and the bundled diff engine are available. Retained for
+    compatibility; the engine requires no installation step.
 
 ==============================================================================
 USAGE                                                       *codediff-usage*

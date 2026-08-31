@@ -6,12 +6,13 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/main.ts",
+    "bundle": "bun build src/main.ts --target=bun --outfile=dist/main.js",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "format": "oxfmt --write .",
-    "format:check": "oxfmt --check .",
-    "lint": "oxlint . --deny-warnings",
-    "lint:fix": "oxlint . --fix"
+    "format": "oxfmt --write src",
+    "format:check": "oxfmt --check src",
+    "lint": "oxlint src --deny-warnings",
+    "lint:fix": "oxlint src --fix"
   },
   "dependencies": {
     "@pierre/diffs": "1.2.2",

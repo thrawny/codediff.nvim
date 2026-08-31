@@ -1,5 +1,5 @@
 -- Test: Installer Module
--- Validates Bun engine bootstrap and dependency management
+-- Validates the bundled Bun engine
 
 local installer = require('codediff.core.installer')
 local version = require("codediff.version")
@@ -35,11 +35,11 @@ describe("Installer Module", function()
     local engine_path = installer.get_engine_path()
     assert.is_not_nil(engine_path, "Engine path should not be nil")
     assert.equal("string", type(engine_path), "Engine path should be a string")
-    assert.is_true(engine_path:match("engine/src/main%.ts$") ~= nil,
-      "Engine path should point at engine/src/main.ts")
+    assert.is_true(engine_path:match("engine/dist/main%.js$") ~= nil,
+      "Engine path should point at engine/dist/main.js")
   end)
 
-  -- Test 5: is_installed checks bun and engine dependencies
+  -- Test 5: is_installed checks Bun and the bundled engine
   it("is_installed returns boolean", function()
     local installed = installer.is_installed()
     assert.equal("boolean", type(installed), "is_installed should return boolean")
@@ -71,10 +71,8 @@ describe("Installer Module", function()
       "needs_update should be the inverse of is_installed")
   end)
 
-  -- Test 8: install function accepts options table
+  -- Test 8: install remains a compatible no-op
   it("install function accepts options table", function()
-    -- When the engine is already installed, install({silent=true}) is a no-op
-    -- that must succeed without network access.
     if installer.is_installed() then
       local success = installer.install({ silent = true })
       assert.is_true(success, "install should succeed when already installed")
