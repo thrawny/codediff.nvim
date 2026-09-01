@@ -157,6 +157,7 @@ local function resume_diff(tabpage)
     local config = require("codediff.config")
     lines_diff = diff_module.compute_diff(original_lines, modified_lines, {
       max_computation_time_ms = config.options.diff.max_computation_time_ms,
+      ignore_whitespace = config.options.diff.ignore_whitespace,
       ignore_trim_whitespace = config.options.diff.ignore_trim_whitespace,
       compute_moves = config.options.diff.compute_moves,
     })

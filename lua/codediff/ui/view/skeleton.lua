@@ -1,12 +1,14 @@
--- Skeleton view: fold unchanged function bodies so the diff reads as
--- signatures + changed code. Folds are computed on the modified side and
--- mirrored to the original side through unchanged region pairs, which keeps
--- the filler-line alignment between the two panes intact.
+-- Structural diff views. Seams mode folds implementation bodies. Focused
+-- mode also removes unchanged seams and implementation-only changes, leaving
+-- changed signatures and data declarations.
 local M = {}
 
 local lifecycle = require("codediff.ui.lifecycle")
 local symbols_mod = require("codediff.core.symbols")
 local hunk_range = require("codediff.ui.hunk_range")
+local config = require("codediff.config")
+
+M.ns_spacer = vim.api.nvim_create_namespace("CodeDiffSkeletonSpacer")
 
 -- ============================================================================
 -- Pure computation (unit-testable)
@@ -55,33 +57,121 @@ local function region_containing(regions, first, last)
   return nil
 end
 
----Compute symmetric fold ranges for both panes.
----A symbol body (everything below its first line) folds when it lies fully
----inside one unchanged region; otherwise its children are considered.
----@param symbols codediff.Symbol[] symbol tree of the modified buffer
----@param regions { orig_start: number, mod_start: number, len: number }[]
----@return { first: number, last: number }[] mod_folds
----@return { first: number, last: number }[] orig_folds
-function M.compute_folds(symbols, regions)
-  local mod_folds, orig_folds = {}, {}
+local function mark_range(visible, first, last, line_count)
+  first = math.max(1, first)
+  last = math.min(line_count, last)
+  for line = first, last do
+    visible[line] = true
+  end
+end
 
+local function range_intersects(first, last, range)
+  return range.end_line > range.start_line and range.start_line <= last and range.end_line - 1 >= first
+end
+
+local function line_in_ranges(line, ranges)
+  for _, range in ipairs(ranges) do
+    if range.first <= line and line <= range.last then
+      return true
+    end
+  end
+  return false
+end
+
+local function mark_changed_signatures(visible, symbols, ranges, line_count)
   local function visit(list)
     for _, symbol in ipairs(list) do
-      local first = symbol.fold_start
-      local last = symbol.end_line
-      local region = last > first and region_containing(regions, first, last) or nil
-      if region then
-        table.insert(mod_folds, { first = first, last = last })
-        local offset = region.orig_start - region.mod_start
-        table.insert(orig_folds, { first = first + offset, last = last + offset })
-      else
-        visit(symbol.children)
+      local signature_last = symbol.fold_start - 1
+      for _, range in ipairs(ranges) do
+        if range_intersects(symbol.start_line, signature_last, range) then
+          mark_range(visible, symbol.start_line, signature_last, line_count)
+          break
+        end
       end
+      visit(symbol.children)
     end
   end
   visit(symbols)
+end
 
-  return mod_folds, orig_folds
+---Lines kept by focused mode on one side of the diff. Implementation and
+---import changes stay hidden. Changed signatures remain visible in full, and
+---a changed top-level data declaration remains visible as a complete block.
+local function focused_visible_lines(changes, side, structure, line_count)
+  local visible = {}
+  local ranges = {}
+  for _, mapping in ipairs(changes or {}) do
+    table.insert(ranges, mapping[side])
+  end
+
+  local blocked = symbols_mod.impl_ranges(structure.symbols)
+  vim.list_extend(blocked, structure.imports)
+  for _, range in ipairs(ranges) do
+    for line = range.start_line, range.end_line - 1 do
+      if not line_in_ranges(line, blocked) then
+        visible[line] = true
+      end
+    end
+  end
+
+  mark_changed_signatures(visible, structure.symbols, ranges, line_count)
+  for _, data_range in ipairs(structure.data or {}) do
+    for _, range in ipairs(ranges) do
+      if range_intersects(data_range.first, data_range.last, range) then
+        mark_range(visible, data_range.first, data_range.last, line_count)
+        break
+      end
+    end
+  end
+
+  return visible
+end
+
+local function append_fold(folds, first, last)
+  if first and last >= first then
+    table.insert(folds, { first = first, last = last })
+  end
+end
+
+local function folds_around_visible(visible, line_count)
+  local folds = {}
+  local hidden_start
+
+  for line = 1, line_count do
+    if visible[line] then
+      append_fold(folds, hidden_start, line - 1)
+      hidden_start = nil
+    else
+      hidden_start = hidden_start or line
+    end
+  end
+
+  append_fold(folds, hidden_start, line_count)
+  return folds
+end
+
+---Focused seam folds for side-by-side layout.
+---@param changes table[] lines_diff.changes
+---@param mod_structure codediff.Structure
+---@param orig_structure codediff.Structure
+---@param orig_line_count number
+---@param mod_line_count number
+---@return { first: number, last: number }[] mod_folds
+---@return { first: number, last: number }[] orig_folds
+function M.compute_focused_folds(changes, mod_structure, orig_structure, orig_line_count, mod_line_count)
+  local mod_visible = focused_visible_lines(changes, "modified", mod_structure, mod_line_count)
+  local orig_visible = focused_visible_lines(changes, "original", orig_structure, orig_line_count)
+  return folds_around_visible(mod_visible, mod_line_count), folds_around_visible(orig_visible, orig_line_count)
+end
+
+---Focused seam folds for inline layout.
+---@param changes table[] lines_diff.changes
+---@param structure codediff.Structure
+---@param line_count number
+---@return { first: number, last: number }[] folds
+function M.compute_focused_folds_inline(changes, structure, line_count)
+  local visible = focused_visible_lines(changes, "modified", structure, line_count)
+  return folds_around_visible(visible, line_count)
 end
 
 ---Seam-only folds for the single inline pane: every callable body folds,
@@ -163,61 +253,6 @@ function M.compute_seam_folds(mod_symbols, orig_symbols, regions)
   return mod_folds, orig_folds
 end
 
----Collect modified-buffer lines a fold may not swallow in inline layout:
----changed lines plus every deletion-overlay anchor line. Inline deletions are
----virt_lines extmarks anchored above a real line; virtual lines attached to
----folded lines are not rendered, so anchors must stay outside folds.
----@param changes table[] lines_diff.changes
----@param line_count number modified buffer line count
----@return table<number, boolean> blocked set of 1-based line numbers
-function M.inline_blocked_lines(changes, line_count)
-  local blocked = {}
-  for _, mapping in ipairs(changes or {}) do
-    for line = mapping.modified.start_line, mapping.modified.end_line - 1 do
-      blocked[line] = true
-    end
-    if mapping.original.end_line > mapping.original.start_line then
-      -- Deletion overlay anchor (see codediff.ui.inline render anchoring)
-      blocked[math.max(1, math.min(mapping.modified.start_line, line_count))] = true
-    end
-  end
-  return blocked
-end
-
----Compute fold ranges for the single inline pane.
----A symbol body folds when it contains no blocked line; otherwise its
----children are considered.
----@param symbols codediff.Symbol[]
----@param blocked table<number, boolean>
----@return { first: number, last: number }[]
-function M.compute_folds_inline(symbols, blocked)
-  local folds = {}
-
-  local function range_is_clear(first, last)
-    for line = first, last do
-      if blocked[line] then
-        return false
-      end
-    end
-    return true
-  end
-
-  local function visit(list)
-    for _, symbol in ipairs(list) do
-      local first = symbol.fold_start
-      local last = symbol.end_line
-      if last > first and range_is_clear(first, last) then
-        table.insert(folds, { first = first, last = last })
-      else
-        visit(symbol.children)
-      end
-    end
-  end
-  visit(symbols)
-
-  return folds
-end
-
 -- ============================================================================
 -- Window fold application
 -- ============================================================================
@@ -226,7 +261,8 @@ local SAVED_OPTS = { "foldmethod", "foldenable", "foldtext", "foldlevel", "foldm
 
 function M.foldtext()
   local count = vim.v.foldend - vim.v.foldstart + 1
-  return "⋯ " .. count .. " unchanged lines"
+  local noun = count == 1 and "line" or "lines"
+  return "⋯ " .. count .. " hidden " .. noun
 end
 
 local function apply_folds(win, folds, saved)
@@ -247,7 +283,7 @@ local function apply_folds(win, folds, saved)
     for _, fold in ipairs(folds) do
       local first = math.max(1, fold.first)
       local last = math.min(line_count, fold.last)
-      if last > first then
+      if last >= first then
         vim.cmd(string.format("%d,%dfold", first, last))
       end
     end
@@ -264,6 +300,101 @@ local function restore_window(win, opts)
   end)
   for opt, value in pairs(opts) do
     vim.wo[win][opt] = value
+  end
+end
+
+local SPACER_TEXT = string.rep(" ", 500)
+local SPACER_HL = "CodeDiffSkeletonSpacer"
+
+local function setup_spacer_highlight()
+  local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+  vim.api.nvim_set_hl(0, SPACER_HL, {
+    fg = normal.fg,
+    bg = normal.bg,
+    nocombine = true,
+  })
+end
+
+local function prepend_inline_spacer(bufnr, row)
+  local inline = require("codediff.ui.inline")
+  local marks = vim.api.nvim_buf_get_extmarks(bufnr, inline.ns_inline, { row, 0 }, { row, -1 }, { details = true })
+  for _, mark in ipairs(marks) do
+    local details = mark[4]
+    if details.virt_lines and details.virt_lines_above then
+      local original = vim.deepcopy(details.virt_lines)
+      local padded = { { { SPACER_TEXT, SPACER_HL } } }
+      vim.list_extend(padded, original)
+      vim.api.nvim_buf_set_extmark(bufnr, inline.ns_inline, row, mark[3], {
+        id = mark[1],
+        virt_lines = padded,
+        virt_lines_above = true,
+        hl_mode = "replace",
+        priority = details.priority or config.options.diff.highlight_priority,
+      })
+      return {
+        bufnr = bufnr,
+        ns_id = inline.ns_inline,
+        id = mark[1],
+        col = mark[3],
+        virt_lines = original,
+        priority = details.priority,
+      }
+    end
+  end
+  return nil
+end
+
+local function apply_spacers(bufnr, folds, inline_layout)
+  vim.api.nvim_buf_clear_namespace(bufnr, M.ns_spacer, 0, -1)
+  setup_spacer_highlight()
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  local inline_spacers = {}
+  for _, fold in ipairs(folds) do
+    -- Virtual lines anchored inside a closed fold are suppressed. Anchor each
+    -- spacer to the adjacent visible line instead.
+    if fold.first > 1 then
+      vim.api.nvim_buf_set_extmark(bufnr, M.ns_spacer, fold.first - 2, 0, {
+        virt_lines = { { { SPACER_TEXT, SPACER_HL } } },
+        hl_mode = "replace",
+        priority = config.options.diff.highlight_priority + 1,
+      })
+    end
+    if fold.last < line_count then
+      local injected = inline_layout and prepend_inline_spacer(bufnr, fold.last) or nil
+      if injected then
+        table.insert(inline_spacers, injected)
+      else
+        vim.api.nvim_buf_set_extmark(bufnr, M.ns_spacer, fold.last, 0, {
+          virt_lines = { { { SPACER_TEXT, SPACER_HL } } },
+          virt_lines_above = true,
+          hl_mode = "replace",
+          priority = config.options.diff.highlight_priority + 1,
+        })
+      end
+    end
+  end
+  return inline_spacers
+end
+
+local function clear_spacers(state)
+  for _, spacer in ipairs(state.inline_spacers or {}) do
+    if vim.api.nvim_buf_is_valid(spacer.bufnr) then
+      local position = vim.api.nvim_buf_get_extmark_by_id(spacer.bufnr, spacer.ns_id, spacer.id, {})
+      if #position > 0 then
+        vim.api.nvim_buf_set_extmark(spacer.bufnr, spacer.ns_id, position[1], spacer.col, {
+          id = spacer.id,
+          virt_lines = spacer.virt_lines,
+          virt_lines_above = true,
+          hl_mode = "replace",
+          priority = spacer.priority or config.options.diff.highlight_priority,
+        })
+      end
+    end
+  end
+  for _, bufnr in ipairs(state.spacer_bufs or {}) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      vim.api.nvim_buf_clear_namespace(bufnr, M.ns_spacer, 0, -1)
+    end
   end
 end
 
@@ -314,6 +445,7 @@ function M.reset(tabpage)
     for win, opts in pairs(session.skeleton.saved) do
       restore_window(win, opts)
     end
+    clear_spacers(session.skeleton)
     session.skeleton = nil
   end
 end
@@ -347,8 +479,13 @@ local function enable_inline(session, diff_result, mode, silent)
     return false
   end
 
-  local symbols = symbols_mod.get_symbols(buf)
-  if #symbols == 0 then
+  local structure = symbols_mod.get_structure(buf)
+  if not structure then
+    notify(silent, no_symbols_message(buf), vim.log.levels.WARN)
+    return false
+  end
+  local symbols = structure.symbols
+  if mode == "seams" and #symbols == 0 then
     notify(silent, no_symbols_message(buf), vim.log.levels.WARN)
     return false
   end
@@ -357,8 +494,7 @@ local function enable_inline(session, diff_result, mode, silent)
   if mode == "seams" then
     folds = M.compute_seam_folds_inline(symbols)
   else
-    local blocked = M.inline_blocked_lines(diff_result.changes, vim.api.nvim_buf_line_count(buf))
-    folds = M.compute_folds_inline(symbols, blocked)
+    folds = M.compute_focused_folds_inline(diff_result.changes, structure, vim.api.nvim_buf_line_count(buf))
   end
   if #folds == 0 then
     notify(silent, "Skeleton view: nothing to fold in this file", vim.log.levels.INFO)
@@ -366,7 +502,13 @@ local function enable_inline(session, diff_result, mode, silent)
 
   local saved = {}
   apply_folds(win, folds, saved)
-  session.skeleton = { saved = saved, mode = mode }
+  local spacer_bufs = {}
+  local inline_spacers = {}
+  if mode == "focused" then
+    inline_spacers = apply_spacers(buf, folds, true)
+    table.insert(spacer_bufs, buf)
+  end
+  session.skeleton = { saved = saved, mode = mode, spacer_bufs = spacer_bufs, inline_spacers = inline_spacers }
   return true
 end
 
@@ -378,18 +520,26 @@ local function enable_side_by_side(session, diff_result, tabpage, mode, silent)
     return false
   end
 
-  local symbols = symbols_mod.get_symbols(modified_buf)
-  if #symbols == 0 then
+  local mod_structure = symbols_mod.get_structure(modified_buf)
+  local orig_structure = symbols_mod.get_structure(original_buf)
+  if not mod_structure or not orig_structure then
+    notify(silent, no_symbols_message(modified_buf), vim.log.levels.WARN)
+    return false
+  end
+  local mod_symbols = mod_structure.symbols
+  local orig_symbols = orig_structure.symbols
+  if mode == "seams" and #mod_symbols == 0 then
     notify(silent, no_symbols_message(modified_buf), vim.log.levels.WARN)
     return false
   end
 
-  local regions = M.unchanged_regions(diff_result.changes, vim.api.nvim_buf_line_count(original_buf), vim.api.nvim_buf_line_count(modified_buf))
   local mod_folds, orig_folds
   if mode == "seams" then
-    mod_folds, orig_folds = M.compute_seam_folds(symbols, symbols_mod.get_symbols(original_buf), regions)
+    local regions = M.unchanged_regions(diff_result.changes, vim.api.nvim_buf_line_count(original_buf), vim.api.nvim_buf_line_count(modified_buf))
+    mod_folds, orig_folds = M.compute_seam_folds(mod_symbols, orig_symbols, regions)
   else
-    mod_folds, orig_folds = M.compute_folds(symbols, regions)
+    mod_folds, orig_folds =
+      M.compute_focused_folds(diff_result.changes, mod_structure, orig_structure, vim.api.nvim_buf_line_count(original_buf), vim.api.nvim_buf_line_count(modified_buf))
   end
   if #mod_folds == 0 then
     notify(silent, "Skeleton view: nothing to fold in this file", vim.log.levels.INFO)
@@ -398,7 +548,13 @@ local function enable_side_by_side(session, diff_result, tabpage, mode, silent)
   local saved = {}
   apply_folds(modified_win, mod_folds, saved)
   apply_folds(original_win, orig_folds, saved)
-  session.skeleton = { saved = saved, mode = mode }
+  local spacer_bufs = {}
+  if mode == "focused" then
+    apply_spacers(modified_buf, mod_folds, false)
+    apply_spacers(original_buf, orig_folds, false)
+    spacer_bufs = { modified_buf, original_buf }
+  end
+  session.skeleton = { saved = saved, mode = mode, spacer_bufs = spacer_bufs }
   return true
 end
 
@@ -440,10 +596,10 @@ local function reveal_cursor(session)
 end
 
 ---@param tabpage number
----@param opts? { mode?: "skeleton"|"seams", silent?: boolean } silent suppresses notifications (auto re-apply)
+---@param opts? { mode?: "seams"|"focused", silent?: boolean } silent suppresses notifications (auto re-apply)
 function M.enable(tabpage, opts)
   local silent = opts ~= nil and opts.silent == true
-  local mode = (opts and opts.mode) or "skeleton"
+  local mode = (opts and opts.mode) or "seams"
   local session = lifecycle.get_session(tabpage)
   if not session then
     return false
@@ -504,10 +660,11 @@ function M.disable(tabpage)
   for win, opts in pairs(session.skeleton.saved) do
     restore_window(win, opts)
   end
+  clear_spacers(session.skeleton)
   session.skeleton = nil
 end
 
----Cycle the view mode: off → skeleton (signatures + changes) → seams only → off.
+---Cycle the view mode: off → seams only → focused seams → off.
 function M.cycle(tabpage)
   tabpage = tabpage or vim.api.nvim_get_current_tabpage()
   local session = lifecycle.get_session(tabpage)
@@ -517,13 +674,15 @@ function M.cycle(tabpage)
 
   local current = session.skeleton_want
   if current == nil then
-    if M.enable(tabpage, { mode = "skeleton" }) then
-      vim.notify("Skeleton view: signatures + changes", vim.log.levels.INFO)
+    if M.enable(tabpage, { mode = "seams", silent = true }) then
+      vim.notify("Skeleton view: seams only", vim.log.levels.INFO)
+    elseif M.enable(tabpage, { mode = "focused" }) then
+      vim.notify("Skeleton view: focused seams", vim.log.levels.INFO)
     end
-  elseif current == "skeleton" then
+  elseif current == "seams" then
     M.reset(tabpage)
-    if M.enable(tabpage, { mode = "seams" }) then
-      vim.notify("Skeleton view: seam changes only", vim.log.levels.INFO)
+    if M.enable(tabpage, { mode = "focused" }) then
+      vim.notify("Skeleton view: focused seams", vim.log.levels.INFO)
     end
   else
     M.disable(tabpage)

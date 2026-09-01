@@ -48,6 +48,7 @@ export interface LinesDiff {
 }
 
 export interface DiffOptions {
+  ignore_whitespace?: boolean;
   ignore_trim_whitespace?: boolean;
   max_computation_time_ms?: number;
   compute_moves?: boolean;
@@ -72,6 +73,11 @@ function linesEqual(a: string[], b: string[], ignoreTrimWhitespace: boolean): bo
     if (left !== right) return false;
   }
   return true;
+}
+
+function comparisonLines(lines: string[], ignoreWhitespace: boolean): string[] {
+  if (!ignoreWhitespace) return lines;
+  return lines.map((line) => line.replace(/\s/g, ""));
 }
 
 interface Pos {
@@ -355,12 +361,6 @@ function computeMoves(
   return moves;
 }
 
-function stripTrailingNewline(line: string): string {
-  if (line.endsWith("\r\n")) return line.slice(0, -2);
-  if (line.endsWith("\n")) return line.slice(0, -1);
-  return line;
-}
-
 function toArray(lines: unknown): string[] {
   // Lua's vim.json.encode turns empty arrays into `{}`, which arrives as an
   // empty object rather than an array.
@@ -375,11 +375,14 @@ export function computeLinesDiff(
 ): LinesDiff {
   const originalLines = toArray(originalInput);
   const modifiedLines = toArray(modifiedInput);
-  const ignoreTrimWhitespace = options.ignore_trim_whitespace ?? false;
+  const ignoreWhitespace = options.ignore_whitespace ?? false;
+  const ignoreTrimWhitespace = !ignoreWhitespace && (options.ignore_trim_whitespace ?? false);
   const timeoutMs = options.max_computation_time_ms || DEFAULT_TIMEOUT_MS;
   const state: ComputeState = { deadline: Date.now() + timeoutMs, hitTimeout: false };
+  const comparedOriginal = comparisonLines(originalLines, ignoreWhitespace);
+  const comparedModified = comparisonLines(modifiedLines, ignoreWhitespace);
 
-  if (linesEqual(originalLines, modifiedLines, ignoreTrimWhitespace)) {
+  if (linesEqual(comparedOriginal, comparedModified, ignoreTrimWhitespace)) {
     return { changes: [], moves: [], hit_timeout: false };
   }
 
@@ -397,8 +400,8 @@ export function computeLinesDiff(
     // `timeout` passes through to diffLines at runtime; on expiry the patch
     // comes back undefined and parseDiffFromFile throws.
     metadata = parseDiffFromFile(
-      { name: "original", contents: toContents(originalLines) },
-      { name: "modified", contents: toContents(modifiedLines) },
+      { name: "original", contents: toContents(comparedOriginal) },
+      { name: "modified", contents: toContents(comparedModified) },
       {
         context: 0,
         ignoreWhitespace: ignoreTrimWhitespace,
@@ -425,26 +428,16 @@ export function computeLinesDiff(
     // the change; vscode ranges point at the insertion line itself.
     let oldLine = hunk.deletionCount === 0 ? hunk.deletionStart + 1 : hunk.deletionStart;
     let newLine = hunk.additionCount === 0 ? hunk.additionStart + 1 : hunk.additionStart;
-    let deletionLineIndex = hunk.deletionLineIndex;
-    let additionLineIndex = hunk.additionLineIndex;
 
     for (const content of hunk.hunkContent) {
       if (content.type === "context") {
         oldLine += content.lines;
         newLine += content.lines;
-        deletionLineIndex += content.lines;
-        additionLineIndex += content.lines;
         continue;
       }
 
-      // Pierre keeps the trailing newline on each parsed line; strip it so
-      // joined block text and char positions line up with buffer columns.
-      const origBlock = metadata.deletionLines
-        .slice(deletionLineIndex, deletionLineIndex + content.deletions)
-        .map(stripTrailingNewline);
-      const modBlock = metadata.additionLines
-        .slice(additionLineIndex, additionLineIndex + content.additions)
-        .map(stripTrailingNewline);
+      const origBlock = originalLines.slice(oldLine - 1, oldLine + content.deletions - 1);
+      const modBlock = modifiedLines.slice(newLine - 1, newLine + content.additions - 1);
 
       changes.push({
         original: { start_line: oldLine, end_line: oldLine + content.deletions },
@@ -454,8 +447,6 @@ export function computeLinesDiff(
 
       oldLine += content.deletions;
       newLine += content.additions;
-      deletionLineIndex += content.deletions;
-      additionLineIndex += content.additions;
     }
   }
 

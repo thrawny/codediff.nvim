@@ -173,6 +173,7 @@ local function request(method, params, timeout_ms)
 end
 
 ---@class DiffOptions
+---@field ignore_whitespace boolean
 ---@field ignore_trim_whitespace boolean
 ---@field max_computation_time_ms integer
 ---@field compute_moves boolean
@@ -186,6 +187,7 @@ end
 function M.compute_diff(original_lines, modified_lines, options)
   options = options or {}
   local engine_options = {
+    ignore_whitespace = options.ignore_whitespace or false,
     ignore_trim_whitespace = options.ignore_trim_whitespace or false,
     max_computation_time_ms = options.max_computation_time_ms or DEFAULT_TIMEOUT_MS,
     compute_moves = options.compute_moves or false,

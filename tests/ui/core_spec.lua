@@ -377,6 +377,26 @@ describe("Render Core", function()
     vim.api.nvim_buf_delete(right_buf, {force = true})
   end)
 
+  it("Does not highlight added blank lines when whitespace is ignored", function()
+    local left_buf = vim.api.nvim_create_buf(false, true)
+    local right_buf = vim.api.nvim_create_buf(false, true)
+    local original = {"line"}
+    local modified = {"line", ""}
+
+    vim.api.nvim_buf_set_lines(left_buf, 0, -1, false, original)
+    vim.api.nvim_buf_set_lines(right_buf, 0, -1, false, modified)
+
+    local lines_diff = diff.compute_diff(original, modified)
+    assert.is_true(#lines_diff.changes > 0, "Blank line insertion should remain available for alignment")
+    core.render_diff(left_buf, right_buf, original, modified, lines_diff)
+
+    local right_marks = vim.api.nvim_buf_get_extmarks(right_buf, highlights.ns_highlight, 0, -1, {})
+    assert.equal(0, #right_marks, "Blank line should not get an insertion background")
+
+    vim.api.nvim_buf_delete(left_buf, {force = true})
+    vim.api.nvim_buf_delete(right_buf, {force = true})
+  end)
+
   -- Test 15: Empty file vs file with content
   it("Handles diff between empty file and file with content", function()
     local left_buf = vim.api.nvim_create_buf(false, true)

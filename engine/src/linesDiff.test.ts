@@ -61,6 +61,34 @@ describe("computeLinesDiff", () => {
     expect(first.modified.end_col).toBe(14);
   });
 
+  describe("ignore_whitespace", () => {
+    it("ignores all whitespace inside lines", () => {
+      const result = computeLinesDiff(
+        ["function greet ( name ) {", "  return name;", "}"],
+        ["function greet(name){", "\treturn  name;  ", "}"],
+        { ignore_whitespace: true },
+      );
+      expect(result.changes).toHaveLength(0);
+    });
+
+    it("still detects non-whitespace changes", () => {
+      const result = computeLinesDiff(["const value = 1;"], ["const  value=2;"], {
+        ignore_whitespace: true,
+      });
+      expect(result.changes).toHaveLength(1);
+      expect(result.changes[0]!.original).toEqual({ start_line: 1, end_line: 2 });
+      expect(result.changes[0]!.modified).toEqual({ start_line: 1, end_line: 2 });
+    });
+
+    it("takes precedence over trim-only comparison", () => {
+      const result = computeLinesDiff(["call(one, two)"], ["call(one,two)"], {
+        ignore_whitespace: true,
+        ignore_trim_whitespace: false,
+      });
+      expect(result.changes).toHaveLength(0);
+    });
+  });
+
   describe("ignore_trim_whitespace", () => {
     it("detects whitespace-only changes when disabled", () => {
       const result = computeLinesDiff(["  hello", "world"], ["    hello", "world"], {

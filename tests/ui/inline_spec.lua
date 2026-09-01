@@ -37,6 +37,23 @@ describe("Inline Diff Rendering", function()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 
+  it("does not highlight added blank lines when whitespace is ignored", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    local original = { "line" }
+    local modified = { "line", "" }
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, modified)
+
+    local lines_diff = diff.compute_diff(original, modified)
+    inline.render_inline_diff(buf, lines_diff, original, modified)
+
+    local marks = vim.api.nvim_buf_get_extmarks(buf, inline.ns_inline, 0, -1, { details = true })
+    for _, mark in ipairs(marks) do
+      assert.are_not.equal("CodeDiffLineInsert", mark[4].hl_group)
+    end
+
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
   -- Test 2: Deleted lines appear as virtual lines
   it("shows deleted lines as virtual lines", function()
     local buf = vim.api.nvim_create_buf(false, true)

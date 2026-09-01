@@ -57,7 +57,7 @@ end
 -- Step 1: Line-Level Highlights
 -- ============================================================================
 
-local function apply_line_highlights(bufnr, line_range, hl_group)
+local function apply_line_highlights(bufnr, line_range, hl_group, lines)
   if line_range.end_line <= line_range.start_line then
     return
   end
@@ -70,6 +70,9 @@ local function apply_line_highlights(bufnr, line_range, hl_group)
     end
 
     local line_idx = line - 1
+    if config.options.diff.ignore_whitespace and (lines[line] or ""):match("^%s*$") then
+      goto continue
+    end
 
     vim.api.nvim_buf_set_extmark(bufnr, ns_highlight, line_idx, 0, {
       end_line = line_idx + 1,
@@ -78,6 +81,8 @@ local function apply_line_highlights(bufnr, line_range, hl_group)
       hl_eol = true,
       priority = config.options.diff.highlight_priority,
     })
+
+    ::continue::
   end
 end
 
@@ -328,11 +333,11 @@ function M.render_diff(left_bufnr, right_bufnr, original_lines, modified_lines, 
     local mod_is_empty = (mapping.modified.end_line <= mapping.modified.start_line)
 
     if not orig_is_empty then
-      apply_line_highlights(left_bufnr, mapping.original, "CodeDiffLineDelete")
+      apply_line_highlights(left_bufnr, mapping.original, "CodeDiffLineDelete", original_lines)
     end
 
     if not mod_is_empty then
-      apply_line_highlights(right_bufnr, mapping.modified, "CodeDiffLineInsert")
+      apply_line_highlights(right_bufnr, mapping.modified, "CodeDiffLineInsert", modified_lines)
     end
 
     if mapping.inner_changes then
@@ -419,7 +424,7 @@ function M.render_single_buffer(bufnr, diff, side)
 
     -- Apply line highlights
     if not is_empty then
-      apply_line_highlights(bufnr, range, line_hl)
+      apply_line_highlights(bufnr, range, line_hl, lines)
     end
 
     -- Apply character highlights from inner changes
@@ -473,7 +478,7 @@ function M.render_merge_view(left_bufnr, right_bufnr, base_to_left_diff, base_to
   for _, change in ipairs(conflict_left_changes) do
     local range = change.modified
     if range and range.end_line > range.start_line then
-      apply_line_highlights(left_bufnr, range, "CodeDiffLineInsert")
+      apply_line_highlights(left_bufnr, range, "CodeDiffLineInsert", left_lines)
     end
     if change.inner_changes then
       for _, inner in ipairs(change.inner_changes) do
@@ -488,7 +493,7 @@ function M.render_merge_view(left_bufnr, right_bufnr, base_to_left_diff, base_to
   for _, change in ipairs(conflict_right_changes) do
     local range = change.modified
     if range and range.end_line > range.start_line then
-      apply_line_highlights(right_bufnr, range, "CodeDiffLineInsert")
+      apply_line_highlights(right_bufnr, range, "CodeDiffLineInsert", right_lines)
     end
     if change.inner_changes then
       for _, inner in ipairs(change.inner_changes) do

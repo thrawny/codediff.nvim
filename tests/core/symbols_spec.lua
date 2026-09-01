@@ -100,6 +100,27 @@ describe("core.symbols", function()
   end)
 end)
 
+describe("core.symbols data declarations", function()
+  it("collects top-level data types but not local ones", function()
+    local source = table.concat({
+      "struct User {",
+      "  int id;",
+      "  const char *name;",
+      "};",
+      "",
+      "void update(void) {",
+      "  struct Local {",
+      "    int value;",
+      "  };",
+      "}",
+    }, "\n")
+
+    local structure = symbols_mod.get_structure_string(source, "c")
+    assert.is_not_nil(structure)
+    assert.same({ { first = 1, last = 4 } }, structure.data)
+  end)
+end)
+
 describe("core.symbols language resolution", function()
   it("maps react filetypes to their parsers without nvim-treesitter", function()
     assert.equals("tsx", symbols_mod.get_path_lang("src/App.tsx"))

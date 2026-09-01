@@ -37,6 +37,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 - **Two-tier highlighting system**:
   - Light backgrounds for entire modified lines (green for insertions, red for deletions)
   - Deep/dark character-level highlights showing exact changes within lines
+- **Whitespace filtering** — ignores indentation, spacing, and trailing-whitespace-only differences by default across every diff layout
 - **Side-by-side diff view** in a new tab with synchronized scrolling
 - **Inline (unified) diff view** — single-window layout with deleted lines as virtual overlays, with treesitter syntax highlighting
 - **Toggle layout** — switch between side-by-side and inline layout at runtime with `t`
@@ -44,7 +45,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 - **Pierre-based diff engine** — the same [@pierre/diffs](https://github.com/pierredotco/diffs) core that powers [Hunk](https://github.com/modem-dev/hunk), running in a long-lived Bun sidecar process
 - **Async git operations** - non-blocking file retrieval from git
 - **Moved code detection** — identifies blocks of code that moved within a file, with visual indicators (highlights, signs, annotations) matching VSCode's experimental `showMoves` feature (opt-in)
-- **Skeleton view** — `s` cycles off → skeleton → seams-only. Skeleton folds unchanged function bodies via treesitter, so a diff reads as signatures + changed code; seams-only additionally folds changed bodies, leaving just signature/declaration-level changes visible for a quick first scan. Works in both layouts (side-by-side mirrors folds across panes to preserve alignment) and stays on across file switches until toggled off
+- **Skeleton view** — `s` cycles off → seams-only → focused seams. Seams-only folds function bodies, leaving signatures and declarations visible for a structural scan. Focused seams hides implementation and import changes, then shows only changed signatures and top-level declarations; changed structs, interfaces, enums, and type declarations appear in full. Virtual blank rows pad each hidden-lines marker above and below. Works in both layouts and stays on across file switches until toggled off
 
 ## Installation
 
@@ -103,7 +104,8 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
       layout = "side-by-side",             -- Diff layout: "side-by-side" (two panes) or "inline" (single pane with virtual lines)
       disable_inlay_hints = true,         -- Disable inlay hints in diff windows for cleaner view
       max_computation_time_ms = 5000,     -- Maximum time for diff computation (VSCode default)
-      ignore_trim_whitespace = false,     -- Ignore leading/trailing whitespace changes (like diffopt+=iwhite)
+      ignore_whitespace = true,           -- Ignore whitespace-only differences, including indentation and internal spacing
+      ignore_trim_whitespace = false,     -- Ignore only leading/trailing whitespace when ignore_whitespace is false
       hide_merge_artifacts = false,       -- Hide merge tool temp files (*.orig, *.BACKUP.*, *.BASE.*, *.LOCAL.*, *.REMOTE.*)
       original_position = "left",         -- Position of original (old) content: "left" or "right"
       conflict_ours_position = "right",   -- Position of ours (:2) in conflict view: "left" or "right"
@@ -184,7 +186,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
         show_help = "g?",   -- Show floating window with available keymaps
         align_move = "gm", -- Temporarily align moved code blocks across panes
         toggle_layout = "t", -- Toggle between side-by-side and inline layout
-        toggle_skeleton = "s", -- Cycle skeleton view (off/skeleton/seams-only); sticky across file switches
+        toggle_skeleton = "s", -- Cycle skeleton view (off/seams-only/focused-seams); sticky across file switches
       },
       explorer = {
         select = "<CR>",    -- Open diff for selected file

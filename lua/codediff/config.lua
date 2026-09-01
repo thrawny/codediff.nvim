@@ -33,7 +33,8 @@ M.defaults = {
     disable_inlay_hints = true, -- Disable inlay hints in diff windows for cleaner view
     semantic_tokens = false, -- Request LSP semantic tokens for virtual diff buffers (can be expensive for large diffs)
     max_computation_time_ms = 5000, -- Maximum time for diff computation (5 seconds, VSCode default)
-    ignore_trim_whitespace = false, -- Ignore leading/trailing whitespace changes (like diffopt+=iwhite)
+    ignore_whitespace = true, -- Ignore whitespace-only differences, including indentation and internal spacing
+    ignore_trim_whitespace = false, -- Ignore only leading/trailing whitespace when ignore_whitespace is false
     hide_merge_artifacts = false, -- Hide merge tool temp files (*.orig, *.BACKUP.*, *.BASE.*, *.LOCAL.*, *.REMOTE.*)
     original_position = "left", -- Position of original (old) content: "left" or "right"
     conflict_ours_position = "right", -- Position of ours (:2) in conflict view: "left" or "right" (independent of original_position)
@@ -120,7 +121,7 @@ M.defaults = {
       hunk_textobject = "ih", -- Textobject for hunk (vih to select, yih to yank, etc.)
       align_move = "gm", -- Temporarily align other pane to show paired moved code
       toggle_layout = "t", -- Toggle diff layout for the current codediff session
-      toggle_skeleton = "s", -- Cycle skeleton view (off/skeleton/seams-only); sticky across file switches
+      toggle_skeleton = "s", -- Cycle skeleton view (off/seams-only/focused-seams); sticky across file switches
       show_help = "g?", -- Show floating window with available keymaps
     },
     explorer = {

@@ -443,13 +443,15 @@ function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines
         end
 
         local line_idx = line - 1
-        pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_inline, line_idx, 0, {
-          end_line = line_idx + 1,
-          end_col = 0,
-          hl_group = hl_group,
-          hl_eol = true,
-          priority = highlight_priority,
-        })
+        if not (config.options.diff.ignore_whitespace and (modified_lines[line] or ""):match("^%s*$")) then
+          pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_inline, line_idx, 0, {
+            end_line = line_idx + 1,
+            end_col = 0,
+            hl_group = hl_group,
+            hl_eol = true,
+            priority = highlight_priority,
+          })
+        end
       end
     end
 

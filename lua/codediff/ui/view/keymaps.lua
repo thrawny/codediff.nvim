@@ -615,7 +615,7 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
   if keymaps.toggle_skeleton then
     lifecycle.set_tab_keymap(tabpage, "n", keymaps.toggle_skeleton, function()
       require("codediff.ui.view.skeleton").cycle(tabpage)
-    end, { desc = "Cycle skeleton view (off/skeleton/seams)" })
+    end, { desc = "Cycle skeleton view (off/seams/focused-seams)" })
   end
 
   -- Toggle stage/unstage (- key) - only in explorer mode

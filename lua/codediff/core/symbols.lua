@@ -10,6 +10,7 @@ local M = {}
 --   imports:        import/use statements (excluded from seam classification)
 --   value_callable: declarations that become callables when bound to a
 --                   function expression (const Foo = () => {}, class props)
+--   data:           type-like declarations shown in full by focused seam view
 -- Languages not listed fall back to pattern matching on the node type.
 local lang_defs = {
   lua = {
@@ -18,6 +19,7 @@ local lang_defs = {
   go = {
     callable = { function_declaration = true, method_declaration = true },
     imports = { import_declaration = true },
+    data = { type_declaration = true },
   },
   python = {
     callable = { function_definition = true },
@@ -35,30 +37,36 @@ local lang_defs = {
     container = { class_declaration = true },
     imports = { import_statement = true },
     value_callable = { variable_declarator = true, public_field_definition = true },
+    data = { interface_declaration = true, type_alias_declaration = true, enum_declaration = true },
   },
   tsx = {
     callable = { function_declaration = true, method_definition = true },
     container = { class_declaration = true },
     imports = { import_statement = true },
     value_callable = { variable_declarator = true, public_field_definition = true },
+    data = { interface_declaration = true, type_alias_declaration = true, enum_declaration = true },
   },
   rust = {
     callable = { function_item = true },
     container = { impl_item = true, trait_item = true },
     imports = { use_declaration = true },
+    data = { struct_item = true, enum_item = true, union_item = true, type_item = true, trait_item = true },
   },
   c = {
     callable = { function_definition = true },
     imports = { preproc_include = true },
+    data = { struct_specifier = true, union_specifier = true, enum_specifier = true, type_definition = true },
   },
   cpp = {
     callable = { function_definition = true },
     imports = { preproc_include = true },
+    data = { struct_specifier = true, union_specifier = true, enum_specifier = true, type_definition = true },
   },
   java = {
     callable = { method_declaration = true, constructor_declaration = true },
     container = { class_declaration = true, interface_declaration = true },
     imports = { import_declaration = true },
+    data = { interface_declaration = true, enum_declaration = true, record_declaration = true, annotation_type_declaration = true },
   },
 }
 
@@ -180,10 +188,17 @@ local function node_end_line(node)
 end
 
 ---Collect symbol nodes below `node` into `result`, nesting children.
----Import statements are collected flat into `imports`.
-local function collect(node, ctx, result, imports)
+---Import statements and top-level data declarations are collected flat.
+local function collect(node, ctx, result, imports, data, inside_symbol, inside_data)
   for child in node:iter_children() do
-    local class = classify_node(child:type(), ctx.defs)
+    local child_type = child:type()
+    local class = classify_node(child_type, ctx.defs)
+    local is_data = not inside_symbol and not inside_data and ctx.defs and ctx.defs.data and ctx.defs.data[child_type]
+    if is_data then
+      local start_row = child:range()
+      table.insert(data, { first = start_row + 1, last = node_end_line(child) })
+    end
+
     if class == "import" then
       local start_row = child:range()
       table.insert(imports, { first = start_row + 1, last = node_end_line(child) })
@@ -191,14 +206,14 @@ local function collect(node, ctx, result, imports)
       local start_row = child:range()
       local symbol = {
         name = node_name(child, ctx.source),
-        kind = child:type(),
+        kind = child_type,
         container = class == "container",
         start_line = start_row + 1,
         end_line = node_end_line(child),
         fold_start = compute_fold_start(child, start_row, ctx.lines),
         children = {},
       }
-      collect(child, ctx, symbol.children, imports)
+      collect(child, ctx, symbol.children, imports, data, true, inside_data or is_data)
       table.insert(result, symbol)
     else
       -- `const Foo = () => {}`: the declaration names the symbol, the bound
@@ -208,17 +223,17 @@ local function collect(node, ctx, result, imports)
         local start_row = child:range()
         local symbol = {
           name = node_name(child, ctx.source),
-          kind = child:type(),
+          kind = child_type,
           container = false,
           start_line = start_row + 1,
           end_line = node_end_line(fn),
           fold_start = compute_fold_start(fn, start_row, ctx.lines),
           children = {},
         }
-        collect(fn, ctx, symbol.children, imports)
+        collect(fn, ctx, symbol.children, imports, data, true, inside_data or is_data)
         table.insert(result, symbol)
       else
-        collect(child, ctx, result, imports)
+        collect(child, ctx, result, imports, data, inside_symbol, inside_data or is_data)
       end
     end
   end
@@ -292,11 +307,12 @@ end
 ---@class codediff.Structure
 ---@field symbols codediff.Symbol[]
 ---@field imports { first: number, last: number }[]
+---@field data { first: number, last: number }[] Top-level type-like declarations
 
 local function structure_from_root(root, source, lines, lang)
-  local result, imports = {}, {}
-  collect(root, { source = source, lines = lines, defs = lang_defs[lang] }, result, imports)
-  return { symbols = result, imports = imports }
+  local result, imports, data = {}, {}, {}
+  collect(root, { source = source, lines = lines, defs = lang_defs[lang] }, result, imports, data, false, false)
+  return { symbols = result, imports = imports, data = data }
 end
 
 ---Extract the symbol structure for a buffer.

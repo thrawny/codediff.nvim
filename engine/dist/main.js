@@ -1392,6 +1392,11 @@ function linesEqual(a, b, ignoreTrimWhitespace) {
   }
   return true;
 }
+function comparisonLines(lines, ignoreWhitespace) {
+  if (!ignoreWhitespace)
+    return lines;
+  return lines.map((line) => line.replace(/\s/g, ""));
+}
 function advancePos(pos, text) {
   let lastNewline = -1;
   let newlines = 0;
@@ -1586,15 +1591,6 @@ function computeMoves(changes, originalLines, modifiedLines) {
   moves.sort((a, b) => a.original.start_line - b.original.start_line);
   return moves;
 }
-function stripTrailingNewline(line) {
-  if (line.endsWith(`\r
-`))
-    return line.slice(0, -2);
-  if (line.endsWith(`
-`))
-    return line.slice(0, -1);
-  return line;
-}
 function toArray(lines) {
   if (Array.isArray(lines))
     return lines;
@@ -1603,10 +1599,13 @@ function toArray(lines) {
 function computeLinesDiff(originalInput, modifiedInput, options = {}) {
   const originalLines = toArray(originalInput);
   const modifiedLines = toArray(modifiedInput);
-  const ignoreTrimWhitespace = options.ignore_trim_whitespace ?? false;
+  const ignoreWhitespace = options.ignore_whitespace ?? false;
+  const ignoreTrimWhitespace = !ignoreWhitespace && (options.ignore_trim_whitespace ?? false);
   const timeoutMs = options.max_computation_time_ms || DEFAULT_TIMEOUT_MS;
   const state = { deadline: Date.now() + timeoutMs, hitTimeout: false };
-  if (linesEqual(originalLines, modifiedLines, ignoreTrimWhitespace)) {
+  const comparedOriginal = comparisonLines(originalLines, ignoreWhitespace);
+  const comparedModified = comparisonLines(modifiedLines, ignoreWhitespace);
+  if (linesEqual(comparedOriginal, comparedModified, ignoreTrimWhitespace)) {
     return { changes: [], moves: [], hit_timeout: false };
   }
   const toContents = (lines) => lines.length > 0 ? `${lines.join(`
@@ -1614,7 +1613,7 @@ function computeLinesDiff(originalInput, modifiedInput, options = {}) {
 ` : "";
   let metadata;
   try {
-    metadata = parseDiffFromFile({ name: "original", contents: toContents(originalLines) }, { name: "modified", contents: toContents(modifiedLines) }, {
+    metadata = parseDiffFromFile({ name: "original", contents: toContents(comparedOriginal) }, { name: "modified", contents: toContents(comparedModified) }, {
       context: 0,
       ignoreWhitespace: ignoreTrimWhitespace,
       timeout: timeoutMs
@@ -1636,18 +1635,14 @@ function computeLinesDiff(originalInput, modifiedInput, options = {}) {
   for (const hunk of metadata.hunks) {
     let oldLine = hunk.deletionCount === 0 ? hunk.deletionStart + 1 : hunk.deletionStart;
     let newLine = hunk.additionCount === 0 ? hunk.additionStart + 1 : hunk.additionStart;
-    let deletionLineIndex = hunk.deletionLineIndex;
-    let additionLineIndex = hunk.additionLineIndex;
     for (const content of hunk.hunkContent) {
       if (content.type === "context") {
         oldLine += content.lines;
         newLine += content.lines;
-        deletionLineIndex += content.lines;
-        additionLineIndex += content.lines;
         continue;
       }
-      const origBlock = metadata.deletionLines.slice(deletionLineIndex, deletionLineIndex + content.deletions).map(stripTrailingNewline);
-      const modBlock = metadata.additionLines.slice(additionLineIndex, additionLineIndex + content.additions).map(stripTrailingNewline);
+      const origBlock = originalLines.slice(oldLine - 1, oldLine + content.deletions - 1);
+      const modBlock = modifiedLines.slice(newLine - 1, newLine + content.additions - 1);
       changes.push({
         original: { start_line: oldLine, end_line: oldLine + content.deletions },
         modified: { start_line: newLine, end_line: newLine + content.additions },
@@ -1655,8 +1650,6 @@ function computeLinesDiff(originalInput, modifiedInput, options = {}) {
       });
       oldLine += content.deletions;
       newLine += content.additions;
-      deletionLineIndex += content.deletions;
-      additionLineIndex += content.additions;
     }
   }
   const moves = options.compute_moves ? computeMoves(changes, originalLines, modifiedLines) : [];
