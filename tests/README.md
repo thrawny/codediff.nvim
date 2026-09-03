@@ -1,6 +1,6 @@
 # Test Suite
 
-Integration tests for codediff.nvim using [plenary.nvim](https://github.com/nvim-lua/plenary.nvim).
+Integration tests for codediff.nvim using [plenary.nvim](https://github.com/nvim-lua/plenary.nvim). The test bootstrap installs Plenary and the JavaScript, TypeScript, and TSX Tree-sitter parsers on first run.
 
 ## Test Coverage
 
@@ -43,7 +43,7 @@ Plus diff behavior specs (moves, whitespace, timeout) in `core/` and UI specs in
 ### Individual spec:
 ```bash
 nvim --headless --noplugin -u tests/init.lua \
-  -c "lua require('plenary.test_harness').test_file('tests/core/engine_integration_spec.lua', { minimal_init = 'tests/init.lua' })"
+  -c "lua require('plenary.busted').run('tests/core/engine_integration_spec.lua')"
 ```
 
 ### Engine unit tests:

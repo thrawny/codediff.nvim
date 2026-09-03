@@ -599,11 +599,16 @@ end
 ---@param opts? { mode?: "seams"|"focused", silent?: boolean } silent suppresses notifications (auto re-apply)
 function M.enable(tabpage, opts)
   local silent = opts ~= nil and opts.silent == true
-  local mode = (opts and opts.mode) or "seams"
+  local requested_mode = (opts and opts.mode) or "seams"
   local session = lifecycle.get_session(tabpage)
   if not session then
     return false
   end
+
+  -- A new file has no old side to focus against. Treat every callable as a
+  -- seam instead of letting focused mode collapse the whole file.
+  local added_file = (session.original_path == nil or session.original_path == "") and session.modified_path ~= nil and session.modified_path ~= ""
+  local mode = requested_mode == "focused" and added_file and "seams" or requested_mode
 
   local diff_result = session.stored_diff_result
   if not diff_result or not diff_result.changes then
@@ -612,7 +617,7 @@ function M.enable(tabpage, opts)
   end
 
   local ok
-  if session.layout == "inline" then
+  if session.layout == "inline" or added_file then
     ok = enable_inline(session, diff_result, mode, silent)
   else
     ok = enable_side_by_side(session, diff_result, tabpage, mode, silent)
@@ -623,7 +628,7 @@ function M.enable(tabpage, opts)
     -- file switch from a rebuild of the file already on screen.
     local previous_path = session.skeleton_path
     session.skeleton_path = session.modified_path
-    session.skeleton_want = mode
+    session.skeleton_want = requested_mode
     ensure_autocmds()
     if previous_path ~= nil and previous_path ~= session.modified_path then
       reveal_cursor(session)

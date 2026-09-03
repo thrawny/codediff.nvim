@@ -45,7 +45,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
 - **Pierre-based diff engine** — the same [@pierre/diffs](https://github.com/pierredotco/diffs) core that powers [Hunk](https://github.com/modem-dev/hunk), running in a long-lived Bun sidecar process
 - **Async git operations** - non-blocking file retrieval from git
 - **Moved code detection** — identifies blocks of code that moved within a file, with visual indicators (highlights, signs, annotations) matching VSCode's experimental `showMoves` feature (opt-in)
-- **Skeleton view** — `s` cycles off → seams-only → focused seams. Seams-only folds function bodies, leaving signatures and declarations visible for a structural scan. Focused seams hides implementation and import changes, then shows only changed signatures and top-level declarations; changed structs, interfaces, enums, and type declarations appear in full. Virtual blank rows pad each hidden-lines marker above and below. Works in both layouts and stays on across file switches until toggled off
+- **Skeleton view** — `s` cycles off → seams-only → focused seams. Seams-only folds function bodies, leaving signatures and declarations visible for a structural scan. Focused seams hides implementation and import changes, then shows only changed signatures and top-level declarations; changed structs, interfaces, enums, and type declarations appear in full. Added files fall back to seams-only because there is no original version to focus against. Virtual blank rows pad each hidden-lines marker above and below. Works in both layouts and stays on across file switches until toggled off
 
 ## Installation
 

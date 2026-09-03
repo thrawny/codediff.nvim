@@ -199,6 +199,41 @@ describe("skeleton view toggle (integration)", function()
     )
   end)
 
+  it("uses seams-only folds for an added file in both layouts", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.original_path = ""
+    session.modified_path = "added.lua"
+    session.stored_diff_result = { changes = {} }
+
+    local function assert_seams_only()
+      assert.is_true(skeleton.enable(tabpage, { mode = "focused" }))
+      assert.equals("focused", session.skeleton_want)
+      assert.equals("seams", session.skeleton.mode)
+      assert.equals(
+        -1,
+        vim.api.nvim_win_call(mod_win, function()
+          return vim.fn.foldclosed(3)
+        end)
+      )
+      assert.equals(
+        4,
+        vim.api.nvim_win_call(mod_win, function()
+          return vim.fn.foldclosed(5)
+        end)
+      )
+    end
+
+    session.single_pane = true
+    session.original_win = nil
+    assert_seams_only()
+
+    skeleton.reset(tabpage)
+    session.layout = "inline"
+    session.single_pane = nil
+    session.original_win = mod_win
+    assert_seams_only()
+  end)
+
   it("focused mode shows a changed top-level struct in full", function()
     local session = session_mod.get_active_diffs()[tabpage]
     local original = {
