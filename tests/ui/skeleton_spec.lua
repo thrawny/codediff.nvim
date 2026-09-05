@@ -85,6 +85,27 @@ describe("skeleton focused fold computation", function()
     local folds = skeleton.compute_focused_folds_inline(changes, parsed, 20)
     assert.same({ { first = 1, last = 20 } }, folds)
   end)
+
+  it("merges hidden regions separated only by blank lines", function()
+    local lines = { "hidden", "hidden", "", "  ", "hidden" }
+    local folds = skeleton.merge_folds_across_blank_lines({
+      { first = 1, last = 2 },
+      { first = 5, last = 5 },
+    }, lines)
+    assert.same({ { first = 1, last = 5 } }, folds)
+  end)
+
+  it("keeps hidden regions separate across visible content", function()
+    local lines = { "hidden", "hidden", "", "changed signature", "hidden" }
+    local folds = skeleton.merge_folds_across_blank_lines({
+      { first = 1, last = 2 },
+      { first = 5, last = 5 },
+    }, lines)
+    assert.same({
+      { first = 1, last = 2 },
+      { first = 5, last = 5 },
+    }, folds)
+  end)
 end)
 
 describe("skeleton view toggle (integration)", function()
@@ -439,6 +460,36 @@ describe("skeleton view toggle (integration)", function()
         return vim.fn.foldclosed(5)
       end)
     )
+  end)
+
+  it("keeps folds closed when returning from another window", function()
+    assert.is_true(skeleton.enable(tabpage, { mode = "focused" }))
+    vim.api.nvim_set_current_win(orig_win)
+
+    -- Fold plugins commonly restore a high foldlevel when a window is entered.
+    vim.wo[mod_win].foldlevel = 99
+    assert.equals(
+      -1,
+      vim.api.nvim_win_call(mod_win, function()
+        return vim.fn.foldclosed(5)
+      end)
+    )
+
+    vim.api.nvim_set_current_win(mod_win)
+    assert.is_true(vim.wait(500, function()
+      return vim.wo[mod_win].foldlevel == 0
+    end))
+    assert.equals(
+      1,
+      vim.api.nvim_win_call(mod_win, function()
+        return vim.fn.foldclosed(5)
+      end)
+    )
+
+    -- Navigation plugins may suppress WinEnter with :noautocmd.
+    vim.wo[mod_win].foldlevel = 99
+    vim.api.nvim_exec_autocmds("SafeState", {})
+    assert.equals(0, vim.wo[mod_win].foldlevel)
   end)
 
   it("disable clears stickiness", function()

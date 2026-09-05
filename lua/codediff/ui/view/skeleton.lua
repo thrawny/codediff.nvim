@@ -150,6 +150,40 @@ local function folds_around_visible(visible, line_count)
   return folds
 end
 
+---Join hidden regions separated only by blank lines. Changed blank lines do
+---not carry useful seam information and otherwise produce consecutive fold
+---markers with a double gap between them.
+---@param folds { first: number, last: number }[]
+---@param lines string[]
+---@return { first: number, last: number }[]
+function M.merge_folds_across_blank_lines(folds, lines)
+  local merged = {}
+  for _, fold in ipairs(folds) do
+    local previous = merged[#merged]
+    local only_blank_between = previous ~= nil
+    if previous then
+      for line = previous.last + 1, fold.first - 1 do
+        if (lines[line] or ""):find("%S") then
+          only_blank_between = false
+          break
+        end
+      end
+    end
+
+    if only_blank_between then
+      previous.last = fold.last
+    else
+      table.insert(merged, { first = fold.first, last = fold.last })
+    end
+  end
+  return merged
+end
+
+local function merged_focused_folds(bufnr, folds)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  return M.merge_folds_across_blank_lines(folds, lines)
+end
+
 ---Focused seam folds for side-by-side layout.
 ---@param changes table[] lines_diff.changes
 ---@param mod_structure codediff.Structure
@@ -435,6 +469,35 @@ local function ensure_autocmds()
       end)
     end,
   })
+
+  local function restore_foldlevel(tabpage, win)
+    local session = lifecycle.get_session(tabpage)
+    if not session or not session.skeleton or not session.skeleton.saved[win] or not vim.api.nvim_win_is_valid(win) then
+      return
+    end
+    vim.wo[win].foldenable = true
+    vim.wo[win].foldlevel = 0
+  end
+
+  -- Fold plugins and navigation mappings may restore their preferred
+  -- foldlevel when a diff pane is entered. Some navigation plugins use
+  -- :noautocmd, so SafeState is also needed to catch the finished move.
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = augroup,
+    callback = function()
+      local tabpage = vim.api.nvim_get_current_tabpage()
+      local win = vim.api.nvim_get_current_win()
+      vim.schedule(function()
+        restore_foldlevel(tabpage, win)
+      end)
+    end,
+  })
+  vim.api.nvim_create_autocmd("SafeState", {
+    group = augroup,
+    callback = function()
+      restore_foldlevel(vim.api.nvim_get_current_tabpage(), vim.api.nvim_get_current_win())
+    end,
+  })
 end
 
 ---Drop the applied fold state and restore window options.
@@ -495,6 +558,7 @@ local function enable_inline(session, diff_result, mode, silent)
     folds = M.compute_seam_folds_inline(symbols)
   else
     folds = M.compute_focused_folds_inline(diff_result.changes, structure, vim.api.nvim_buf_line_count(buf))
+    folds = merged_focused_folds(buf, folds)
   end
   if #folds == 0 then
     notify(silent, "Skeleton view: nothing to fold in this file", vim.log.levels.INFO)
@@ -540,6 +604,8 @@ local function enable_side_by_side(session, diff_result, tabpage, mode, silent)
   else
     mod_folds, orig_folds =
       M.compute_focused_folds(diff_result.changes, mod_structure, orig_structure, vim.api.nvim_buf_line_count(original_buf), vim.api.nvim_buf_line_count(modified_buf))
+    mod_folds = merged_focused_folds(modified_buf, mod_folds)
+    orig_folds = merged_focused_folds(original_buf, orig_folds)
   end
   if #mod_folds == 0 then
     notify(silent, "Skeleton view: nothing to fold in this file", vim.log.levels.INFO)
