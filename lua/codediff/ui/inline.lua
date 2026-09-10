@@ -4,6 +4,7 @@ local M = {}
 
 local config = require("codediff.config")
 local highlights = require("codediff.ui.highlights")
+local inline_wrap = require("codediff.ui.inline_wrap")
 
 -- Dedicated namespace for inline diff (separate from side-by-side namespaces)
 M.ns_inline = vim.api.nvim_create_namespace("codediff-inline")
@@ -377,6 +378,7 @@ end
 -- @param opts? table: { filetype?: string } for syntax highlighting on virt_lines
 function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines, opts)
   -- Clear previous inline decorations
+  inline_wrap.clear(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, M.ns_inline, 0, -1)
   -- Clear merged highlight cache on re-render (colorscheme may have changed)
   merged_hl_cache = {}
@@ -429,7 +431,7 @@ function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines
         anchor_line = math.max(anchor_line, 0)
       end
 
-      pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_inline, anchor_line, 0, {
+      inline_wrap.add(bufnr, M.ns_inline, anchor_line, {
         virt_lines = virt_lines,
         virt_lines_above = true,
         priority = highlight_priority,
@@ -468,6 +470,9 @@ end
 -- ============================================================================
 
 function M.clear(bufnr)
+  if bufnr then
+    inline_wrap.clear(bufnr)
+  end
   if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
     vim.api.nvim_buf_clear_namespace(bufnr, M.ns_inline, 0, -1)
   end
