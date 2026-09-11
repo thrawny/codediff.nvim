@@ -52,11 +52,13 @@ end
 
 local function build_winbar(sess, win)
   local winbar_config = config.options.diff.winbar or {}
+  local mode_labels = { seams = "Seams", focused = "Focused seams", api = "API", file = "File" }
+  local mode = mode_labels[sess.skeleton_want] or "Diff"
   if not winbar_config.enabled then
-    return ""
+    return " " .. mode
   end
 
-  local parts = {}
+  local parts = { mode }
 
   if winbar_config.show_file_index ~= false and sess.explorer and sess.explorer.tree then
     local ok, refresh = pcall(require, "codediff.ui.explorer.refresh")
@@ -77,7 +79,7 @@ local function build_winbar(sess, win)
     end
   end
 
-  if winbar_config.show_hunk_index ~= false then
+  if sess.skeleton_want ~= "file" and winbar_config.show_hunk_index ~= false then
     local diff_result = require("codediff.ui.view.skeleton").active_diff(sess)
     if diff_result and diff_result.changes and #diff_result.changes > 0 then
       local cursor = vim.api.nvim_win_get_cursor(win)[1]
@@ -223,10 +225,22 @@ function M.create_session(
     if sess and sess.result_win and vim.api.nvim_win_is_valid(sess.result_win) then
       return
     end
-    if sess and vim.api.nvim_win_is_valid(win) then
+    if sess and win and vim.api.nvim_win_is_valid(win) then
       vim.wo[win].winbar = build_winbar(sess, win)
     end
   end
+
+  vim.api.nvim_create_autocmd("User", {
+    group = tab_augroup,
+    pattern = "CodeDiffModeChanged",
+    callback = function()
+      local sess = active_diffs[tabpage]
+      if sess then
+        sync_window_ui(sess, sess.original_win)
+        sync_window_ui(sess, sess.modified_win)
+      end
+    end,
+  })
 
   vim.api.nvim_create_autocmd({ "BufWinEnter", "BufEnter", "WinEnter", "FileType", "CursorMoved" }, {
     group = tab_augroup,

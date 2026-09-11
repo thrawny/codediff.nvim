@@ -48,7 +48,7 @@ describe("Render Lifecycle", function()
     vim.api.nvim_buf_delete(right_buf, { force = true })
   end)
 
-  it("keeps diff winbars empty by default", function()
+  it("shows the mode in diff winbars by default", function()
     local left_buf = vim.api.nvim_create_buf(false, true)
     local right_buf = vim.api.nvim_create_buf(false, true)
 
@@ -70,7 +70,7 @@ describe("Render Lifecycle", function()
     vim.api.nvim_set_current_win(right_win)
     vim.api.nvim_exec_autocmds("CursorMoved", {})
 
-    assert.equal("", vim.wo[right_win].winbar)
+    assert.equal(" Diff", vim.wo[right_win].winbar)
 
     vim.cmd("tabclose")
     vim.api.nvim_buf_delete(left_buf, { force = true })
@@ -106,6 +106,29 @@ describe("Render Lifecycle", function()
     vim.api.nvim_exec_autocmds("CursorMoved", {})
 
     assert.is_true(vim.wo[right_win].winbar:find("1/1", 1, true) ~= nil)
+
+    -- API mode follows its own diff, not the working file's hunks.
+    local session = lifecycle.get_session(tabpage)
+    session.skeleton_want = "api"
+    session.skeleton = {
+      saved = {},
+      api_diff = {
+        changes = {
+          { original = { start_line = 1, end_line = 2 }, modified = { start_line = 1, end_line = 2 } },
+          { original = { start_line = 2, end_line = 3 }, modified = { start_line = 2, end_line = 3 } },
+        },
+      },
+    }
+    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
+    assert.matches("API", vim.wo[right_win].winbar)
+    assert.is_true(vim.wo[right_win].winbar:find("2/2", 1, true) ~= nil)
+
+    session.skeleton = nil
+    session.skeleton_want = "file"
+    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
+    assert.matches("File", vim.wo[right_win].winbar)
+    assert.is_nil(vim.wo[right_win].winbar:find("1/1", 1, true))
+    session.skeleton_want = nil
 
     codediff_config.options.diff.winbar = previous_winbar
     vim.cmd("tabclose")

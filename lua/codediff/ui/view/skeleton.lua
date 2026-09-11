@@ -930,6 +930,7 @@ function M.enable(tabpage, opts)
     session.skeleton_path = session.modified_path
     session.skeleton_want = "api"
     ensure_autocmds()
+    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
     return true
   end
 
@@ -940,6 +941,7 @@ function M.enable(tabpage, opts)
     session.skeleton_path = session.modified_path
     session.skeleton_want = "file"
     ensure_autocmds()
+    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
     return true
   end
 
@@ -971,6 +973,7 @@ function M.enable(tabpage, opts)
     if previous_path ~= nil and previous_path ~= session.modified_path then
       reveal_cursor(session)
     end
+    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
   end
   return ok
 end
@@ -1010,6 +1013,7 @@ function M.disable(tabpage)
   if was_file then
     leave_file(session, tabpage)
   end
+  vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
 end
 
 ---Called by the layout toggle before it recreates windows and buffers. A
@@ -1021,6 +1025,7 @@ function M.on_layout_toggle(tabpage)
     session.skeleton_want = nil
     session.skeleton_path = nil
     session.skeleton_file_layout = nil
+    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
   end
 end
 

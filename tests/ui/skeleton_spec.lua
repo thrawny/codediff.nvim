@@ -396,6 +396,8 @@ describe("skeleton view toggle (integration)", function()
   it("cycle steps off → file → off when there is no API view", function()
     -- Inline, so file mode needs no layout switch. Lua has no API view, so
     -- the cycle skips API.
+    local diff = session_mod.get_active_diffs()[tabpage].stored_diff_result
+    session_mod.create_session(tabpage, "standalone", nil, "test.lua", "test.lua", nil, nil, orig_buf, mod_buf, orig_win, mod_win, diff)
     local session = session_mod.get_active_diffs()[tabpage]
     session.layout = "inline"
     session.original_win = mod_win
@@ -404,10 +406,45 @@ describe("skeleton view toggle (integration)", function()
     skeleton.cycle(tabpage)
     assert.is_true(skeleton.is_active(tabpage))
     assert.equals("file", session.skeleton_want)
-
+    assert.equals(0, #vim.api.nvim_buf_get_extmarks(mod_buf, require("codediff.ui.inline").ns_inline, 0, -1, {}))
+    assert.equals(tabpage, vim.api.nvim_get_current_tabpage())
+    assert.matches("File", vim.wo[mod_win].winbar)
     skeleton.cycle(tabpage)
     assert.is_false(skeleton.is_active(tabpage))
     assert.is_nil(session.skeleton_want)
+    assert.matches("Diff", vim.wo[mod_win].winbar)
+  end)
+
+  it("restores side-by-side layout after plain file mode", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.original_path = "test.lua"
+    session.modified_path = "test.lua"
+    session.original_revision = "HEAD~1"
+    session.modified_revision = "HEAD"
+    session.git_root = vim.fn.getcwd()
+    session.changedtick = {}
+    local git = require("codediff.core.git")
+    local fetch = git.get_file_content
+    git.get_file_content = function(_, _, _, cb)
+      vim.schedule(function()
+        cb(nil, original_content)
+      end)
+    end
+    local ok, err = pcall(function()
+      assert.is_true(skeleton.enable(tabpage, { mode = "file" }))
+      assert.is_true(vim.wait(1000, function()
+        return session.layout == "inline" and skeleton.is_active(tabpage)
+      end))
+      assert.equals(session.original_win, session.modified_win)
+      assert.equals(tabpage, vim.api.nvim_get_current_tabpage())
+      skeleton.cycle(tabpage)
+      assert.is_true(vim.wait(1000, function()
+        return session.layout == "side-by-side" and session.original_win ~= session.modified_win
+      end))
+      assert.is_nil(session.skeleton_want)
+    end)
+    git.get_file_content = fetch
+    assert.is_true(ok, tostring(err))
   end)
 
   it("seams mode folds changed bodies too, paired by name", function()
@@ -727,16 +764,23 @@ describe("skeleton API mode", function()
     assert.equals(orig_buf, vim.api.nvim_win_get_buf(orig_win))
   end)
 
-  it("cycle steps off → API → file", function()
+  it("cycle steps off → API → file → off and updates the mode indicator", function()
+    local path = "/p/shop.go"
+    session_mod.create_session(tabpage, "standalone", nil, path, path, nil, nil, orig_buf, mod_buf, orig_win, mod_win, { changes = {} })
     local session = session_mod.get_active_diffs()[tabpage]
     session.layout = "inline"
     session.original_win = mod_win
 
     skeleton.cycle(tabpage)
     assert.equals("api", session.skeleton_want)
+    assert.matches("API", vim.wo[mod_win].winbar)
     skeleton.cycle(tabpage)
     assert.equals("file", session.skeleton_want)
     assert.equals(mod_buf, vim.api.nvim_win_get_buf(mod_win))
+    assert.matches("File", vim.wo[mod_win].winbar)
+    skeleton.cycle(tabpage)
+    assert.is_nil(session.skeleton_want)
+    assert.matches("Diff", vim.wo[mod_win].winbar)
   end)
 
   it("P adds unexported declarations to the API diff", function()

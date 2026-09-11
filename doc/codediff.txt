@@ -188,6 +188,9 @@ Press `s` in a diff view to cycle the skeleton view through three states:
                   back when you cycle on.
 
 The skeleton view works in both layouts and stays on when you switch files.
+The winbar always shows the current mode: Diff, API or File. Enabling
+`diff.winbar.enabled` adds file and hunk positions; file mode hides the hunk
+position, and API mode counts hunks in the API diff.
 
 ==============================================================================
 API VIEW                                                      *codediff-api*
