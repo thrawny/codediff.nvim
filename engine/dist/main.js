@@ -1,6 +1,7 @@
 // @bun
 // src/main.ts
 import { readFileSync } from "fs";
+
 // node_modules/@pierre/diffs/dist/constants.js
 var DIFFS_DEVELOPMENT_BUILD = (() => {
   try {
@@ -633,9 +634,9 @@ class Diff {
       if (!component.removed) {
         if (!component.added && this.useLongestToken) {
           let value = newTokens.slice(newPos, newPos + component.count);
-          value = value.map(function(value2, i) {
+          value = value.map(function(value, i) {
             const oldValue = oldTokens[oldPos + i];
-            return oldValue.length > value2.length ? oldValue : value2;
+            return oldValue.length > value.length ? oldValue : value;
           });
           component.value = this.join(value);
         } else {
@@ -654,6 +655,252 @@ class Diff {
   }
 }
 
+// node_modules/@pierre/diffs/node_modules/diff/libesm/diff/character.js
+class CharacterDiff extends Diff {
+}
+var characterDiff = new CharacterDiff;
+
+// node_modules/@pierre/diffs/node_modules/diff/libesm/util/string.js
+function longestCommonPrefix(str1, str2) {
+  let i;
+  for (i = 0;i < str1.length && i < str2.length; i++) {
+    if (str1[i] != str2[i]) {
+      return str1.slice(0, i);
+    }
+  }
+  return str1.slice(0, i);
+}
+function longestCommonSuffix(str1, str2) {
+  let i;
+  if (!str1 || !str2 || str1[str1.length - 1] != str2[str2.length - 1]) {
+    return "";
+  }
+  for (i = 0;i < str1.length && i < str2.length; i++) {
+    if (str1[str1.length - (i + 1)] != str2[str2.length - (i + 1)]) {
+      return str1.slice(-i);
+    }
+  }
+  return str1.slice(-i);
+}
+function replacePrefix(string, oldPrefix, newPrefix) {
+  if (string.slice(0, oldPrefix.length) != oldPrefix) {
+    throw Error(`string ${JSON.stringify(string)} doesn't start with prefix ${JSON.stringify(oldPrefix)}; this is a bug`);
+  }
+  return newPrefix + string.slice(oldPrefix.length);
+}
+function replaceSuffix(string, oldSuffix, newSuffix) {
+  if (!oldSuffix) {
+    return string + newSuffix;
+  }
+  if (string.slice(-oldSuffix.length) != oldSuffix) {
+    throw Error(`string ${JSON.stringify(string)} doesn't end with suffix ${JSON.stringify(oldSuffix)}; this is a bug`);
+  }
+  return string.slice(0, -oldSuffix.length) + newSuffix;
+}
+function removePrefix(string, oldPrefix) {
+  return replacePrefix(string, oldPrefix, "");
+}
+function removeSuffix(string, oldSuffix) {
+  return replaceSuffix(string, oldSuffix, "");
+}
+function maximumOverlap(string1, string2) {
+  return string2.slice(0, overlapCount(string1, string2));
+}
+function overlapCount(a, b) {
+  let startA = 0;
+  if (a.length > b.length) {
+    startA = a.length - b.length;
+  }
+  let endB = b.length;
+  if (a.length < b.length) {
+    endB = a.length;
+  }
+  const map = Array(endB);
+  let k = 0;
+  map[0] = 0;
+  for (let j = 1;j < endB; j++) {
+    if (b[j] == b[k]) {
+      map[j] = map[k];
+    } else {
+      map[j] = k;
+    }
+    while (k > 0 && b[j] != b[k]) {
+      k = map[k];
+    }
+    if (b[j] == b[k]) {
+      k++;
+    }
+  }
+  k = 0;
+  for (let i = startA;i < a.length; i++) {
+    while (k > 0 && a[i] != b[k]) {
+      k = map[k];
+    }
+    if (a[i] == b[k]) {
+      k++;
+    }
+  }
+  return k;
+}
+function trailingWs(string) {
+  let i;
+  for (i = string.length - 1;i >= 0; i--) {
+    if (!string[i].match(/\s/)) {
+      break;
+    }
+  }
+  return string.substring(i + 1);
+}
+function leadingWs(string) {
+  const match = string.match(/^\s*/);
+  return match ? match[0] : "";
+}
+
+// node_modules/@pierre/diffs/node_modules/diff/libesm/diff/word.js
+var extendedWordChars = "a-zA-Z0-9_\\u{AD}\\u{C0}-\\u{D6}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}";
+var tokenizeIncludingWhitespace = new RegExp(`[${extendedWordChars}]+|\\s+|[^${extendedWordChars}]`, "ug");
+
+class WordDiff extends Diff {
+  equals(left, right, options) {
+    if (options.ignoreCase) {
+      left = left.toLowerCase();
+      right = right.toLowerCase();
+    }
+    return left.trim() === right.trim();
+  }
+  tokenize(value, options = {}) {
+    let parts;
+    if (options.intlSegmenter) {
+      const segmenter = options.intlSegmenter;
+      if (segmenter.resolvedOptions().granularity != "word") {
+        throw new Error('The segmenter passed must have a granularity of "word"');
+      }
+      parts = [];
+      for (const segmentObj of Array.from(segmenter.segment(value))) {
+        const segment = segmentObj.segment;
+        if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment)) {
+          parts[parts.length - 1] += segment;
+        } else {
+          parts.push(segment);
+        }
+      }
+    } else {
+      parts = value.match(tokenizeIncludingWhitespace) || [];
+    }
+    const tokens = [];
+    let prevPart = null;
+    parts.forEach((part) => {
+      if (/\s/.test(part)) {
+        if (prevPart == null) {
+          tokens.push(part);
+        } else {
+          tokens.push(tokens.pop() + part);
+        }
+      } else if (prevPart != null && /\s/.test(prevPart)) {
+        if (tokens[tokens.length - 1] == prevPart) {
+          tokens.push(tokens.pop() + part);
+        } else {
+          tokens.push(prevPart + part);
+        }
+      } else {
+        tokens.push(part);
+      }
+      prevPart = part;
+    });
+    return tokens;
+  }
+  join(tokens) {
+    return tokens.map((token, i) => {
+      if (i == 0) {
+        return token;
+      } else {
+        return token.replace(/^\s+/, "");
+      }
+    }).join("");
+  }
+  postProcess(changes, options) {
+    if (!changes || options.oneChangePerToken) {
+      return changes;
+    }
+    let lastKeep = null;
+    let insertion = null;
+    let deletion = null;
+    changes.forEach((change) => {
+      if (change.added) {
+        insertion = change;
+      } else if (change.removed) {
+        deletion = change;
+      } else {
+        if (insertion || deletion) {
+          dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, change);
+        }
+        lastKeep = change;
+        insertion = null;
+        deletion = null;
+      }
+    });
+    if (insertion || deletion) {
+      dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, null);
+    }
+    return changes;
+  }
+}
+var wordDiff = new WordDiff;
+function dedupeWhitespaceInChangeObjects(startKeep, deletion, insertion, endKeep) {
+  if (deletion && insertion) {
+    const oldWsPrefix = leadingWs(deletion.value);
+    const oldWsSuffix = trailingWs(deletion.value);
+    const newWsPrefix = leadingWs(insertion.value);
+    const newWsSuffix = trailingWs(insertion.value);
+    if (startKeep) {
+      const commonWsPrefix = longestCommonPrefix(oldWsPrefix, newWsPrefix);
+      startKeep.value = replaceSuffix(startKeep.value, newWsPrefix, commonWsPrefix);
+      deletion.value = removePrefix(deletion.value, commonWsPrefix);
+      insertion.value = removePrefix(insertion.value, commonWsPrefix);
+    }
+    if (endKeep) {
+      const commonWsSuffix = longestCommonSuffix(oldWsSuffix, newWsSuffix);
+      endKeep.value = replacePrefix(endKeep.value, newWsSuffix, commonWsSuffix);
+      deletion.value = removeSuffix(deletion.value, commonWsSuffix);
+      insertion.value = removeSuffix(insertion.value, commonWsSuffix);
+    }
+  } else if (insertion) {
+    if (startKeep) {
+      const ws = leadingWs(insertion.value);
+      insertion.value = insertion.value.substring(ws.length);
+    }
+    if (endKeep) {
+      const ws = leadingWs(endKeep.value);
+      endKeep.value = endKeep.value.substring(ws.length);
+    }
+  } else if (startKeep && endKeep) {
+    const newWsFull = leadingWs(endKeep.value), delWsStart = leadingWs(deletion.value), delWsEnd = trailingWs(deletion.value);
+    const newWsStart = longestCommonPrefix(newWsFull, delWsStart);
+    deletion.value = removePrefix(deletion.value, newWsStart);
+    const newWsEnd = longestCommonSuffix(removePrefix(newWsFull, newWsStart), delWsEnd);
+    deletion.value = removeSuffix(deletion.value, newWsEnd);
+    endKeep.value = replacePrefix(endKeep.value, newWsFull, newWsEnd);
+    startKeep.value = replaceSuffix(startKeep.value, newWsFull, newWsFull.slice(0, newWsFull.length - newWsEnd.length));
+  } else if (endKeep) {
+    const endKeepWsPrefix = leadingWs(endKeep.value);
+    const deletionWsSuffix = trailingWs(deletion.value);
+    const overlap = maximumOverlap(deletionWsSuffix, endKeepWsPrefix);
+    deletion.value = removeSuffix(deletion.value, overlap);
+  } else if (startKeep) {
+    const startKeepWsSuffix = trailingWs(startKeep.value);
+    const deletionWsPrefix = leadingWs(deletion.value);
+    const overlap = maximumOverlap(startKeepWsSuffix, deletionWsPrefix);
+    deletion.value = removePrefix(deletion.value, overlap);
+  }
+}
+
+class WordsWithSpaceDiff extends Diff {
+  tokenize(value) {
+    const regex = new RegExp(`(\\r?\\n)|[${extendedWordChars}]+|[^\\S\\n\\r]+|[^${extendedWordChars}]`, "ug");
+    return value.match(regex) || [];
+  }
+}
+var wordsWithSpaceDiff = new WordsWithSpaceDiff;
 // node_modules/@pierre/diffs/node_modules/diff/libesm/diff/line.js
 class LineDiff extends Diff {
   constructor() {
@@ -1089,9 +1336,9 @@ class Diff3 {
       if (!component.removed) {
         if (!component.added && this.useLongestToken) {
           let value = newTokens.slice(newPos, newPos + component.count);
-          value = value.map(function(value2, i) {
+          value = value.map(function(value, i) {
             const oldValue = oldTokens[oldPos + i];
-            return oldValue.length > value2.length ? oldValue : value2;
+            return oldValue.length > value.length ? oldValue : value;
           });
           component.value = this.join(value);
         } else {
@@ -1111,7 +1358,7 @@ class Diff3 {
 }
 
 // node_modules/diff/libesm/util/string.js
-function longestCommonPrefix(str1, str2) {
+function longestCommonPrefix2(str1, str2) {
   let i;
   for (i = 0;i < str1.length && i < str2.length; i++) {
     if (str1[i] != str2[i]) {
@@ -1120,7 +1367,7 @@ function longestCommonPrefix(str1, str2) {
   }
   return str1.slice(0, i);
 }
-function longestCommonSuffix(str1, str2) {
+function longestCommonSuffix2(str1, str2) {
   let i;
   if (!str1 || !str2 || str1[str1.length - 1] != str2[str2.length - 1]) {
     return "";
@@ -1132,13 +1379,13 @@ function longestCommonSuffix(str1, str2) {
   }
   return str1.slice(-i);
 }
-function replacePrefix(string, oldPrefix, newPrefix) {
+function replacePrefix2(string, oldPrefix, newPrefix) {
   if (string.slice(0, oldPrefix.length) != oldPrefix) {
     throw Error(`string ${JSON.stringify(string)} doesn't start with prefix ${JSON.stringify(oldPrefix)}; this is a bug`);
   }
   return newPrefix + string.slice(oldPrefix.length);
 }
-function replaceSuffix(string, oldSuffix, newSuffix) {
+function replaceSuffix2(string, oldSuffix, newSuffix) {
   if (!oldSuffix) {
     return string + newSuffix;
   }
@@ -1147,16 +1394,16 @@ function replaceSuffix(string, oldSuffix, newSuffix) {
   }
   return string.slice(0, -oldSuffix.length) + newSuffix;
 }
-function removePrefix(string, oldPrefix) {
-  return replacePrefix(string, oldPrefix, "");
+function removePrefix2(string, oldPrefix) {
+  return replacePrefix2(string, oldPrefix, "");
 }
-function removeSuffix(string, oldSuffix) {
-  return replaceSuffix(string, oldSuffix, "");
+function removeSuffix2(string, oldSuffix) {
+  return replaceSuffix2(string, oldSuffix, "");
 }
-function maximumOverlap(string1, string2) {
-  return string2.slice(0, overlapCount(string1, string2));
+function maximumOverlap2(string1, string2) {
+  return string2.slice(0, overlapCount2(string1, string2));
 }
-function overlapCount(a, b) {
+function overlapCount2(a, b) {
   let startA = 0;
   if (a.length > b.length) {
     startA = a.length - b.length;
@@ -1195,16 +1442,16 @@ function overlapCount(a, b) {
 function segment(string, segmenter) {
   const parts = [];
   for (const segmentObj of Array.from(segmenter.segment(string))) {
-    const segment2 = segmentObj.segment;
-    if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment2)) {
-      parts[parts.length - 1] += segment2;
+    const segment = segmentObj.segment;
+    if (parts.length && /\s/.test(parts[parts.length - 1]) && /\s/.test(segment)) {
+      parts[parts.length - 1] += segment;
     } else {
-      parts.push(segment2);
+      parts.push(segment);
     }
   }
   return parts;
 }
-function trailingWs(string, segmenter) {
+function trailingWs2(string, segmenter) {
   if (segmenter) {
     return leadingAndTrailingWs(string, segmenter)[1];
   }
@@ -1216,7 +1463,7 @@ function trailingWs(string, segmenter) {
   }
   return string.substring(i + 1);
 }
-function leadingWs(string, segmenter) {
+function leadingWs2(string, segmenter) {
   if (segmenter) {
     return leadingAndTrailingWs(string, segmenter)[0];
   }
@@ -1225,7 +1472,7 @@ function leadingWs(string, segmenter) {
 }
 function leadingAndTrailingWs(string, segmenter) {
   if (!segmenter) {
-    return [leadingWs(string), trailingWs(string)];
+    return [leadingWs2(string), trailingWs2(string)];
   }
   if (segmenter.resolvedOptions().granularity != "word") {
     throw new Error('The segmenter passed must have a granularity of "word"');
@@ -1239,10 +1486,10 @@ function leadingAndTrailingWs(string, segmenter) {
 }
 
 // node_modules/diff/libesm/diff/word.js
-var extendedWordChars = "a-zA-Z0-9_\\u{AD}\\u{C0}-\\u{D6}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}";
-var tokenizeIncludingWhitespace = new RegExp(`[${extendedWordChars}]+|\\s+|[^${extendedWordChars}]`, "ug");
+var extendedWordChars2 = "a-zA-Z0-9_\\u{AD}\\u{C0}-\\u{D6}\\u{D8}-\\u{F6}\\u{F8}-\\u{2C6}\\u{2C8}-\\u{2D7}\\u{2DE}-\\u{2FF}\\u{1E00}-\\u{1EFF}";
+var tokenizeIncludingWhitespace2 = new RegExp(`[${extendedWordChars2}]+|\\s+|[^${extendedWordChars2}]`, "ug");
 
-class WordDiff extends Diff3 {
+class WordDiff2 extends Diff3 {
   equals(left, right, options) {
     if (options.ignoreCase) {
       left = left.toLowerCase();
@@ -1259,7 +1506,7 @@ class WordDiff extends Diff3 {
       }
       parts = segment(value, segmenter);
     } else {
-      parts = value.match(tokenizeIncludingWhitespace) || [];
+      parts = value.match(tokenizeIncludingWhitespace2) || [];
     }
     const tokens = [];
     let prevPart = null;
@@ -1306,7 +1553,7 @@ class WordDiff extends Diff3 {
         deletion = change;
       } else {
         if (insertion || deletion) {
-          dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, change, options.intlSegmenter);
+          dedupeWhitespaceInChangeObjects2(lastKeep, deletion, insertion, change, options.intlSegmenter);
         }
         lastKeep = change;
         insertion = null;
@@ -1314,65 +1561,65 @@ class WordDiff extends Diff3 {
       }
     });
     if (insertion || deletion) {
-      dedupeWhitespaceInChangeObjects(lastKeep, deletion, insertion, null, options.intlSegmenter);
+      dedupeWhitespaceInChangeObjects2(lastKeep, deletion, insertion, null, options.intlSegmenter);
     }
     return changes;
   }
 }
-var wordDiff2 = new WordDiff;
-function dedupeWhitespaceInChangeObjects(startKeep, deletion, insertion, endKeep, segmenter) {
+var wordDiff2 = new WordDiff2;
+function dedupeWhitespaceInChangeObjects2(startKeep, deletion, insertion, endKeep, segmenter) {
   if (deletion && insertion) {
     const [oldWsPrefix, oldWsSuffix] = leadingAndTrailingWs(deletion.value, segmenter);
     const [newWsPrefix, newWsSuffix] = leadingAndTrailingWs(insertion.value, segmenter);
     if (startKeep) {
-      const commonWsPrefix = longestCommonPrefix(oldWsPrefix, newWsPrefix);
-      startKeep.value = replaceSuffix(startKeep.value, newWsPrefix, commonWsPrefix);
-      deletion.value = removePrefix(deletion.value, commonWsPrefix);
-      insertion.value = removePrefix(insertion.value, commonWsPrefix);
+      const commonWsPrefix = longestCommonPrefix2(oldWsPrefix, newWsPrefix);
+      startKeep.value = replaceSuffix2(startKeep.value, newWsPrefix, commonWsPrefix);
+      deletion.value = removePrefix2(deletion.value, commonWsPrefix);
+      insertion.value = removePrefix2(insertion.value, commonWsPrefix);
     }
     if (endKeep) {
-      const commonWsSuffix = longestCommonSuffix(oldWsSuffix, newWsSuffix);
-      endKeep.value = replacePrefix(endKeep.value, newWsSuffix, commonWsSuffix);
-      deletion.value = removeSuffix(deletion.value, commonWsSuffix);
-      insertion.value = removeSuffix(insertion.value, commonWsSuffix);
+      const commonWsSuffix = longestCommonSuffix2(oldWsSuffix, newWsSuffix);
+      endKeep.value = replacePrefix2(endKeep.value, newWsSuffix, commonWsSuffix);
+      deletion.value = removeSuffix2(deletion.value, commonWsSuffix);
+      insertion.value = removeSuffix2(insertion.value, commonWsSuffix);
     }
   } else if (insertion) {
     if (startKeep) {
-      const ws = leadingWs(insertion.value, segmenter);
+      const ws = leadingWs2(insertion.value, segmenter);
       insertion.value = insertion.value.substring(ws.length);
     }
     if (endKeep) {
-      const ws = leadingWs(endKeep.value, segmenter);
+      const ws = leadingWs2(endKeep.value, segmenter);
       endKeep.value = endKeep.value.substring(ws.length);
     }
   } else if (startKeep && endKeep) {
-    const newWsFull = leadingWs(endKeep.value, segmenter), [delWsStart, delWsEnd] = leadingAndTrailingWs(deletion.value, segmenter);
-    const newWsStart = longestCommonPrefix(newWsFull, delWsStart);
-    deletion.value = removePrefix(deletion.value, newWsStart);
-    const newWsEnd = longestCommonSuffix(removePrefix(newWsFull, newWsStart), delWsEnd);
-    deletion.value = removeSuffix(deletion.value, newWsEnd);
-    endKeep.value = replacePrefix(endKeep.value, newWsFull, newWsEnd);
-    startKeep.value = replaceSuffix(startKeep.value, newWsFull, newWsFull.slice(0, newWsFull.length - newWsEnd.length));
+    const newWsFull = leadingWs2(endKeep.value, segmenter), [delWsStart, delWsEnd] = leadingAndTrailingWs(deletion.value, segmenter);
+    const newWsStart = longestCommonPrefix2(newWsFull, delWsStart);
+    deletion.value = removePrefix2(deletion.value, newWsStart);
+    const newWsEnd = longestCommonSuffix2(removePrefix2(newWsFull, newWsStart), delWsEnd);
+    deletion.value = removeSuffix2(deletion.value, newWsEnd);
+    endKeep.value = replacePrefix2(endKeep.value, newWsFull, newWsEnd);
+    startKeep.value = replaceSuffix2(startKeep.value, newWsFull, newWsFull.slice(0, newWsFull.length - newWsEnd.length));
   } else if (endKeep) {
-    const endKeepWsPrefix = leadingWs(endKeep.value, segmenter);
-    const deletionWsSuffix = trailingWs(deletion.value, segmenter);
-    const overlap = maximumOverlap(deletionWsSuffix, endKeepWsPrefix);
-    deletion.value = removeSuffix(deletion.value, overlap);
+    const endKeepWsPrefix = leadingWs2(endKeep.value, segmenter);
+    const deletionWsSuffix = trailingWs2(deletion.value, segmenter);
+    const overlap = maximumOverlap2(deletionWsSuffix, endKeepWsPrefix);
+    deletion.value = removeSuffix2(deletion.value, overlap);
   } else if (startKeep) {
-    const startKeepWsSuffix = trailingWs(startKeep.value, segmenter);
-    const deletionWsPrefix = leadingWs(deletion.value, segmenter);
-    const overlap = maximumOverlap(startKeepWsSuffix, deletionWsPrefix);
-    deletion.value = removePrefix(deletion.value, overlap);
+    const startKeepWsSuffix = trailingWs2(startKeep.value, segmenter);
+    const deletionWsPrefix = leadingWs2(deletion.value, segmenter);
+    const overlap = maximumOverlap2(startKeepWsSuffix, deletionWsPrefix);
+    deletion.value = removePrefix2(deletion.value, overlap);
   }
 }
 
-class WordsWithSpaceDiff extends Diff3 {
+class WordsWithSpaceDiff2 extends Diff3 {
   tokenize(value) {
-    const regex = new RegExp(`(\\r?\\n)|[${extendedWordChars}]+|[^\\S\\n\\r]+|[^${extendedWordChars}]`, "ug");
+    const regex = new RegExp(`(\\r?\\n)|[${extendedWordChars2}]+|[^\\S\\n\\r]+|[^${extendedWordChars2}]`, "ug");
     return value.match(regex) || [];
   }
 }
-var wordsWithSpaceDiff2 = new WordsWithSpaceDiff;
+var wordsWithSpaceDiff2 = new WordsWithSpaceDiff2;
 function diffWordsWithSpace2(oldStr, newStr, options) {
   return wordsWithSpaceDiff2.diff(oldStr, newStr, options);
 }
