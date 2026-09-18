@@ -31,7 +31,26 @@ describe("Explorer File Filter", function()
 
     it("handles double star with slash for directory matching", function()
       local pattern = glob_to_pattern("**/foo")
-      assert.equals("^.-foo$", pattern)
+      assert.equals("^.*/foo$", pattern)
+    end)
+  end)
+
+  describe("glob_to_patterns", function()
+    it("emits both the kept and dropped form of a leading **/", function()
+      assert.same({ "^.*/foo$", "^foo$" }, filter.glob_to_patterns("**/foo"))
+    end)
+
+    it("returns a single pattern when there is no **/", function()
+      assert.same({ "^[^/]*%.txt$" }, filter.glob_to_patterns("*.txt"))
+    end)
+
+    it("expands every **/ occurrence", function()
+      assert.same({
+        "^.*/foo/.*/bar$",
+        "^.*/foo/bar$",
+        "^foo/.*/bar$",
+        "^foo/bar$",
+      }, filter.glob_to_patterns("**/foo/**/bar"))
     end)
   end)
 
@@ -114,6 +133,13 @@ describe("Explorer File Filter", function()
       assert.is_true(matches_any_pattern("any/path/file.txt", {"**"}))
     end)
 
+    it("requires a whole directory name, not a suffix of one", function()
+      assert.is_false(matches_any_pattern("internal/openapi/ogen/oas_client_gen.go", {"**/gen/**"}))
+      assert.is_false(matches_any_pattern("pkg/oxygen/foo.go", {"**/gen/**"}))
+      assert.is_true(matches_any_pattern("internal/gen/foo.go", {"**/gen/**"}))
+      assert.is_true(matches_any_pattern("gen/foo.go", {"**/gen/**"}))
+    end)
+
     it("matches trailing double star", function()
       assert.is_true(matches_any_pattern("foo/bar/baz.txt", {"foo/**"}))
     end)
@@ -153,9 +179,11 @@ describe("Explorer File Filter", function()
 
   describe("matches_any_pattern - real world examples", function()
     it("filters Go generated files", function()
-      local patterns = {"*.pb.go", "*.gen.go"}
+      local patterns = {"*.pb.go", "*.gen.go", "*_gen.go"}
       assert.is_true(matches_any_pattern("api/v1/service.pb.go", patterns))
       assert.is_true(matches_any_pattern("internal/models/user.gen.go", patterns))
+      assert.is_true(matches_any_pattern("internal/model/query.sql_gen.go", patterns))
+      assert.is_true(matches_any_pattern("internal/openapi/ogen/oas_client_gen.go", patterns))
       assert.is_false(matches_any_pattern("main.go", patterns))
     end)
 

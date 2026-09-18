@@ -215,6 +215,7 @@ Setup entry point:
           "**/generated/**",
           "**/gen/**",
           "*.gen.go",
+          "*_gen.go",
           "*_generated.go",
           "*.pb.go",
           "*.pb.gw.go",

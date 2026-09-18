@@ -3,6 +3,8 @@ local M = {}
 local gitattributes_cache = {}
 
 -- Convert glob pattern to Lua pattern
+-- A `**/` here means "one or more directories"; M.glob_to_patterns also emits a
+-- variant with `**/` dropped so the combination covers "zero or more".
 function M.glob_to_pattern(glob)
   -- Use unique placeholders that won't appear in file paths
   local DOUBLE_STAR_SLASH = "\001DOUBLESTARSLASH\001"
@@ -13,16 +15,52 @@ function M.glob_to_pattern(glob)
   -- Escape Lua magic characters (except * and ?)
   pattern = pattern:gsub("([%.%+%-%^%$%(%)%[%]%%])", "%%%1")
   -- Convert glob wildcards to placeholders first (order matters!)
-  -- Handle **/ specially - it matches zero or more directories
+  -- Handle **/ specially - it matches whole directories, never a partial name
   pattern = pattern:gsub("%*%*/", DOUBLE_STAR_SLASH)
   pattern = pattern:gsub("%*%*", DOUBLE_STAR)
   pattern = pattern:gsub("%*", SINGLE_STAR)
   pattern = pattern:gsub("%?", ".") -- ? matches single character
   -- Now convert placeholders to Lua patterns
-  pattern = pattern:gsub(DOUBLE_STAR_SLASH, ".-") -- **/ matches zero or more dirs (including trailing /)
+  pattern = pattern:gsub(DOUBLE_STAR_SLASH, ".*/") -- **/ matches one or more dirs, boundary included
   pattern = pattern:gsub(DOUBLE_STAR, ".*") -- ** matches anything including /
   pattern = pattern:gsub(SINGLE_STAR, "[^/]*") -- * matches anything except /
   return "^" .. pattern .. "$"
+end
+
+-- Expand a glob into every Lua pattern it can match.
+-- Lua patterns have no optional group, so `**/` (zero or more directories) needs
+-- one variant per `**/` occurrence: kept (one or more dirs) or dropped (zero).
+local MAX_DOUBLE_STAR_SLASH = 8
+
+function M.glob_to_patterns(glob)
+  local _, occurrences = glob:gsub("%*%*/", "")
+  if occurrences == 0 or occurrences > MAX_DOUBLE_STAR_SLASH then
+    return { M.glob_to_pattern(glob) }
+  end
+
+  local variants = { glob }
+  for _ = 1, occurrences do
+    local expanded = {}
+    for _, variant in ipairs(variants) do
+      -- Replace only the leftmost remaining `**/`, once per variant, so each
+      -- round doubles the set until every occurrence has both forms.
+      expanded[#expanded + 1] = variant:gsub("%*%*/", "\002", 1)
+      expanded[#expanded + 1] = variant:gsub("%*%*/", "", 1)
+    end
+    variants = expanded
+  end
+
+  local patterns = {}
+  local seen = {}
+  for _, variant in ipairs(variants) do
+    local pattern = M.glob_to_pattern((variant:gsub("\002", "**/")))
+    if not seen[pattern] then
+      seen[pattern] = true
+      patterns[#patterns + 1] = pattern
+    end
+  end
+
+  return patterns
 end
 
 -- Check if a file path matches any of the given glob patterns
@@ -38,24 +76,26 @@ function M.matches_any_pattern(path, patterns)
   local basename = path:match("([^/]+)$") or path
   for _, glob in ipairs(patterns) do
     local match_target
-    local match_pattern
+    local match_patterns
 
     if glob:sub(1, 1) == "/" then
       -- Leading / anchors to root - match full path against pattern without /
       match_target = path
-      match_pattern = M.glob_to_pattern(glob:sub(2))
+      match_patterns = M.glob_to_patterns(glob:sub(2))
     elseif glob:find("/") then
       -- Contains / but no leading / - match full path
       match_target = path
-      match_pattern = M.glob_to_pattern(glob)
+      match_patterns = M.glob_to_patterns(glob)
     else
       -- No / at all - match basename only (matches anywhere)
       match_target = basename
-      match_pattern = M.glob_to_pattern(glob)
+      match_patterns = M.glob_to_patterns(glob)
     end
 
-    if match_target:match(match_pattern) then
-      return true
+    for _, match_pattern in ipairs(match_patterns) do
+      if match_target:match(match_pattern) then
+        return true
+      end
     end
   end
   return false

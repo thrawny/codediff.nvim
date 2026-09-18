@@ -74,6 +74,7 @@ M.defaults = {
         "**/generated/**",
         "**/gen/**",
         "*.gen.go",
+        "*_gen.go",
         "*_generated.go",
         "*.pb.go",
         "*.pb.gw.go",

@@ -139,6 +139,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
           "**/generated/**",
           "**/gen/**",
           "*.gen.go",
+          "*_gen.go",
           "*_generated.go",
           "*.pb.go",
           "*.pb.gw.go",
