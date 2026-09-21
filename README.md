@@ -20,18 +20,19 @@ https://github.com/user-attachments/assets/64c41f01-dffe-4318-bce4-16eec8de356e
 
 ## Features
 
-### Experimental review foundation
+### Review sessions
 
-`codediff.nvim` now includes an experimental built-in `:CodeReview` command so review workflow code can be consolidated into this repo over time.
+`:CodeReview` (also `:Review`) opens a read-only review session with the file
+explorer, LSP-aware navigation and `<Tab>`/`<S-Tab>` to walk the files.
 
-Current built-ins:
-- `:CodeReview` / `:CodeReview open` — open a review session on the current working tree
-- `:CodeReview commits REV [REV2]` — open a review session for a revision or revision range
-- `:CodeReview export` — export stored review comments to the clipboard
-- `:CodeReview preview` — preview exported markdown
-- `:CodeReview clear` — clear stored review comments
+- `:CodeReview` / `:CodeReview open` — review the current working tree
+- `:CodeReview commits REV [REV2]` — review a revision or revision range
+- `:CodeReview pr [NUMBER]` — review a GitHub PR, picking one with `gh` if the number is omitted
+- `:CodeReview close` — close the session
+- `:CodeReview toggle` — switch between readonly and edit mode
 
-This is intentionally minimal for now: comment storage/export now lives in `lua/codediff/review/`, while interactive comment UI and annotations still need to be folded in.
+A PR review also gets a Context group above Changes, holding the PR description
+and the Jira ticket named in the PR title or branch.
 
 
 - **Two-tier highlighting system**:

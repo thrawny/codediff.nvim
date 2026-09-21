@@ -4,10 +4,6 @@ local config = require("codediff.review.config")
 local highlights = require("codediff.review.highlights")
 local hooks = require("codediff.review.hooks")
 local keymaps = require("codediff.review.keymaps")
-local storage = require("codediff.review.storage")
-local store = require("codediff.review.store")
-local export = require("codediff.review.export")
-local comments = require("codediff.review.comments")
 
 local initialized = false
 local augroup = nil
@@ -94,15 +90,6 @@ local function open_codediff_with_revisions(rev1, rev2)
     vim.notify("codediff.nvim is required", vim.log.levels.ERROR, { title = "codediff.review" })
     return
   end
-
-  if rev1 and rev2 then
-    storage.set_revisions(rev1, rev2)
-  else
-    storage.clear_revisions()
-  end
-
-  store.reset()
-  store.load()
 
   if rev1 and rev2 then
     vim.cmd("CodeDiff " .. rev1 .. " " .. rev2)
@@ -209,19 +196,6 @@ function M.is_active()
   return M.current_session() ~= nil
 end
 
-function M.export_clipboard(opts)
-  opts = opts or {}
-  if store.count() == 0 then
-    if opts.notify_empty ~= false then
-      vim.notify("No comments to export", vim.log.levels.WARN, { title = "codediff.review" })
-    end
-    return false
-  end
-
-  export.to_clipboard(opts.preview ~= false)
-  return true
-end
-
 function M.close(opts)
   opts = opts or {}
   local lifecycle, tabpage = M.current_session()
@@ -229,17 +203,8 @@ function M.close(opts)
     return false
   end
 
-  if opts.export ~= false and store.count() > 0 then
-    export.to_clipboard(opts.preview ~= false)
-  end
-
   if lifecycle and lifecycle.get_session(tabpage) then
     lifecycle.cleanup(tabpage)
-  end
-
-  if opts.clear then
-    store.clear()
-    require("codediff.review.marks").clear_all()
   end
 
   if #vim.api.nvim_list_tabpages() > 1 then
@@ -251,7 +216,6 @@ function M.close(opts)
     end
   end
   hooks.on_session_closed()
-  storage.clear_revisions()
   return true
 end
 
@@ -261,44 +225,6 @@ function M.toggle(opts)
   end
   M.open()
   return true
-end
-
-function M.export(opts)
-  export.to_clipboard(not opts or opts.preview ~= false)
-end
-
-function M.preview()
-  export.preview()
-end
-
-function M.clear()
-  store.clear()
-  require("codediff.review.marks").clear_all()
-  vim.notify("All comments cleared", vim.log.levels.INFO, { title = "codediff.review" })
-end
-
-function M.count()
-  return store.count()
-end
-
-function M.add_note()
-  comments.add_at_cursor("note")
-end
-
-function M.add_suggestion()
-  comments.add_at_cursor("suggestion")
-end
-
-function M.add_issue()
-  comments.add_at_cursor("issue")
-end
-
-function M.add_praise()
-  comments.add_at_cursor("praise")
-end
-
-function M.list()
-  comments.list()
 end
 
 function M.toggle_readonly()

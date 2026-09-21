@@ -61,16 +61,13 @@ describe("codediff.review foundation", function()
     end
   end)
 
-  it("opens review sessions and exports stored comments", function()
-    open_review(repo)
+  it("opens a review session", function()
+    local tabpage = open_review(repo)
+    local lifecycle = require("codediff.ui.lifecycle")
+    local session = lifecycle.get_session(tabpage)
 
-    local store = require("codediff.review.store")
-    local export = require("codediff.review.export")
-    store.add("file1.txt", 1, "issue", "Needs work", nil, "new")
-
-    local markdown = export.generate_markdown()
-    assert.is_true(markdown:find("file1.txt:1", 1, true) ~= nil)
-    assert.is_true(markdown:find("Needs work", 1, true) ~= nil)
+    assert.is_not_nil(session)
+    assert.is_true(session.codediff_review_active)
   end)
 
   it("reports the active review session", function()
@@ -159,8 +156,8 @@ describe("codediff.review foundation", function()
     end
 
     vim.api.nvim_set_current_win(session.modified_win)
-    local review_mapping = vim.fn.maparg("i", "n", false, true)
-    assert.equals("Add comment (pick type)", review_mapping.desc)
+    assert.equals("Toggle file panel", vim.fn.maparg("f", "n", false, true).desc)
+    assert.equals("Close", vim.fn.maparg("q", "n", false, true).desc)
   end)
 
   it("keeps same-file definitions inside the modified diff pane", function()
@@ -482,30 +479,6 @@ describe("codediff.review foundation", function()
   it("supports no-op close outside review sessions", function()
     local review = require("codediff.review")
     assert.is_false(review.close({ noop_if_inactive = true, preview = false }))
-  end)
-
-  it("exports to clipboard only when comments exist", function()
-    local review = require("codediff.review")
-    open_review(repo)
-
-    assert.is_false(review.export_clipboard({ notify_empty = false }))
-
-    local store = require("codediff.review.store")
-    store.add("file1.txt", 1, "issue", "Needs work", nil, "new")
-    assert.is_true(review.export_clipboard({ preview = false }))
-  end)
-
-  it("can clear comments while closing", function()
-    local tabpage = open_review(repo)
-    vim.api.nvim_set_current_tabpage(tabpage)
-    local review = require("codediff.review")
-    local store = require("codediff.review.store")
-    store.add("file1.txt", 1, "issue", "Needs work", nil, "new")
-    assert.equals(1, review.count())
-
-    review.close({ clear = true, export = false, preview = false })
-
-    assert.equals(0, review.count())
   end)
 
   it("restores buffer editability when a review session is cleaned up", function()

@@ -19,12 +19,7 @@ local subcommands = {
     end,
     desc = "Open review for a GitHub pull request",
   },
-  close = { fn = function() require("codediff.review").close() end, desc = "Close review and export comments" },
-  export = { fn = function() require("codediff.review").export() end, desc = "Export comments to clipboard" },
-  preview = { fn = function() require("codediff.review").preview() end, desc = "Preview exported markdown" },
-  clear = { fn = function() require("codediff.review").clear() end, desc = "Clear all comments" },
-  list = { fn = function() require("codediff.review").list() end, desc = "List all comments" },
-  sidekick = { fn = function() require("codediff.review.export").to_sidekick() end, desc = "Send comments to sidekick.nvim" },
+  close = { fn = function() require("codediff.review").close() end, desc = "Close review" },
   toggle = { fn = function() require("codediff.review").toggle_readonly() end, desc = "Toggle readonly/edit mode" },
 }
 
