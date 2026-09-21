@@ -188,6 +188,56 @@ function M.toggle_group(explorer, group_name)
   vim.notify(label .. ": " .. state, vim.log.levels.INFO)
 end
 
+-- Open a review context entry (PR description, Jira ticket) as a read-only
+-- markdown document filling the diff area. These entries are not diffable, so
+-- the view collapses to a single pane instead of showing an empty side.
+-- @param explorer: explorer object
+-- @param entry: context entry from codediff.review.context
+function M.open_context(explorer, entry)
+  local context = require("codediff.review.context")
+  local lifecycle = require("codediff.ui.lifecycle")
+
+  local lines, err = context.lines(entry, { cwd = explorer.git_root })
+  if err then
+    vim.notify(err, vim.log.levels.ERROR, { title = "codediff.review" })
+    return
+  end
+
+  local session = lifecycle.get_session(explorer.tabpage)
+  if not session then
+    return
+  end
+
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  vim.bo[bufnr].buftype = "nofile"
+  vim.bo[bufnr].bufhidden = "wipe"
+  vim.bo[bufnr].buflisted = false
+  pcall(vim.api.nvim_buf_set_name, bufnr, entry.title)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].filetype = "markdown"
+
+  local render_seq = lifecycle.begin_render(explorer.tabpage)
+  vim.schedule(function()
+    if session.layout == "inline" then
+      require("codediff.ui.view.inline_view").show_single_buffer(explorer.tabpage, bufnr)
+    else
+      require("codediff.ui.view.side_by_side").show_document(explorer.tabpage, bufnr, render_seq)
+    end
+
+    -- Documents read better without the diff gutter.
+    local sess = lifecycle.get_session(explorer.tabpage)
+    local win = sess and sess.modified_win
+    if win and vim.api.nvim_win_is_valid(win) then
+      vim.wo[win].number = false
+      vim.wo[win].relativenumber = false
+      vim.wo[win].signcolumn = "no"
+      vim.wo[win].wrap = true
+      vim.wo[win].linebreak = true
+    end
+  end)
+end
+
 -- Stage/unstage a file by path and group (lower-level function)
 -- This can be called from anywhere with explicit path and group
 -- @param git_root: git repository root
@@ -275,7 +325,7 @@ function M.toggle_stage_entry(explorer, tree)
   end
 
   local node = tree:get_node()
-  if not node or not node.data or node.data.type == "group" then
+  if not node or not node.data or node.data.type == "group" or node.data.type == "context" then
     return
   end
 
@@ -337,7 +387,7 @@ function M.restore_entry(explorer, tree)
   end
 
   local node = tree:get_node()
-  if not node or not node.data or node.data.type == "group" then
+  if not node or not node.data or node.data.type == "group" or node.data.type == "context" then
     return
   end
 

@@ -4,6 +4,7 @@ local M = {}
 local Tree = require("codediff.ui.lib.tree")
 local Split = require("codediff.ui.lib.split")
 local config = require("codediff.config")
+local actions_module = require("codediff.ui.explorer.actions")
 local nodes_module = require("codediff.ui.explorer.nodes")
 local tree_module = require("codediff.ui.explorer.tree")
 local keymaps_module = require("codediff.ui.explorer.keymaps")
@@ -101,8 +102,12 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
   local selected_path = nil
   local selected_group = nil
 
+  -- Review context entries (PR description, Jira ticket) are stashed by
+  -- review.pr just before the session opens; other sessions get none.
+  local context_entries = require("codediff.review.context").take_pending()
+
   -- Create tree with buffer number
-  local tree_data = tree_module.create_tree_data(status_result, git_root, base_revision, is_dir_mode, explorer_config.visible_groups)
+  local tree_data = tree_module.create_tree_data(status_result, git_root, base_revision, is_dir_mode, explorer_config.visible_groups, context_entries)
   local tree = Tree({
     bufnr = split.bufnr,
     nodes = tree_data,
@@ -178,6 +183,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
     current_file_group = nil, -- Track currently selected file's group (staged/unstaged)
     current_selection = nil, -- Full file selection used to replay current state
     is_hidden = false, -- Track visibility state
+    context_entries = context_entries, -- PR/Jira context entries (PR reviews only)
     visible_groups = vim.deepcopy(explorer_config.visible_groups or { staged = true, unstaged = true, conflicts = true }),
   }
 
@@ -521,6 +527,18 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
     selected_group = file_data.group
     tree:render()
     on_file_select(file_data, opts)
+  end
+
+  -- Open a context entry (PR description, Jira ticket) in a single full-width
+  -- pane. Clears the file selection so a refresh does not replace the document.
+  explorer.select_context = function(entry)
+    explorer.current_file_path = nil
+    explorer.current_file_group = nil
+    explorer.current_selection = nil
+    selected_path = entry.id
+    selected_group = "context"
+    tree:render()
+    actions_module.open_context(explorer, entry)
   end
 
   -- Clear selection highlight (used when showing welcome page)

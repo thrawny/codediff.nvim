@@ -100,7 +100,7 @@ function M.get_pr(number, root, deps)
     "view",
     tostring(number),
     "--json",
-    "number,title,author,headRefName,baseRefName,isDraft,url",
+    "number,title,author,headRefName,baseRefName,isDraft,url,body",
   }, root)
 
   if result.code ~= 0 then
@@ -128,6 +128,16 @@ end
 
 local function cleanup_ref(ref, root, deps)
   (deps.system or system)({ "git", "update-ref", "-d", ref }, root)
+end
+
+-- The PR list omits the body to keep `gh pr list` cheap; fetch it on demand so
+-- the explorer can show the description alongside the changed files.
+local function with_body(pr, root, deps)
+  if pr.body ~= nil then
+    return pr
+  end
+  local full = M.get_pr(pr.number, root, deps)
+  return full or pr
 end
 
 function M.review_pr(pr, root, deps)
@@ -164,7 +174,10 @@ function M.review_pr(pr, root, deps)
     return
   end
 
-  (deps.open_commits or require("codediff.review").open_commits)(base_sha, pr_sha)
+  local open_commits = deps.open_commits or require("codediff.review").open_commits
+  local context = require("codediff.review.context")
+  context.set_pending(context.entries_for_pr(with_body(pr, root, deps)))
+  open_commits(base_sha, pr_sha)
 end
 
 function M.open(number, deps)

@@ -24,7 +24,9 @@ function M.setup(explorer)
         return
       end
 
-      if node.data and (node.data.type == "group" or node.data.type == "directory") then
+      if node.data and node.data.type == "context" then
+        explorer.select_context(node.data.entry)
+      elseif node.data and (node.data.type == "group" or node.data.type == "directory") then
         -- Toggle group or directory
         if node:is_expanded() then
           node:collapse()
@@ -57,6 +59,10 @@ function M.setup(explorer)
     if not node or not node.data or node.data.type == "group" or node.data.type == "directory" then
       return
     end
+    if node.data.type == "context" then
+      explorer.select_context(node.data.entry)
+      return
+    end
     explorer.on_file_select(node.data)
   end, vim.tbl_extend("force", map_options, { buffer = split.bufnr, desc = "Select file" }))
 
@@ -72,7 +78,7 @@ function M.setup(explorer)
       end
 
       local node = tree:get_node()
-      if not node or not node.data or node.data.type == "group" then
+      if not node or not node.data or node.data.type == "group" or node.data.type == "context" then
         return
       end
 

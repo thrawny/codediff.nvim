@@ -868,6 +868,15 @@ function M.show_deleted_virtual_file(tabpage, git_root, file_path, revision, ren
   })
 end
 
+--- Show a standalone document buffer (e.g. a PR description) in a single pane
+function M.show_document(tabpage, load_bufnr, render_seq)
+  show_single_file(tabpage, {
+    keep = "modified",
+    load_bufnr = load_bufnr,
+    render_seq = render_seq,
+  })
+end
+
 --- Show the welcome page in a single pane (modified side)
 function M.show_welcome(tabpage, load_bufnr)
   show_single_file(tabpage, {

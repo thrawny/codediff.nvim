@@ -112,6 +112,25 @@ function M.create_file_nodes(files, git_root, group)
   return nodes
 end
 
+-- Create context nodes (PR description, Jira ticket) shown above the changes
+function M.create_context_nodes(entries)
+  local nodes = {}
+  for _, entry in ipairs(entries) do
+    nodes[#nodes + 1] = Tree.Node({
+      text = entry.label,
+      data = {
+        type = "context",
+        path = entry.id,
+        group = "context",
+        entry = entry,
+        icon = entry.icon,
+        icon_color = entry.icon_color,
+      },
+    })
+  end
+  return nodes
+end
+
 -- Create tree nodes with directory hierarchy (tree mode)
 function M.create_tree_file_nodes(files, git_root, group)
   -- Build directory structure
@@ -283,6 +302,15 @@ function M.prepare_node(node, max_width, selected_path, selected_group)
     -- Group header
     line:append(" ", "CodeDiffExplorerTreeGroup")
     line:append(node.text, "CodeDiffExplorerTreeGroup")
+  elseif data.type == "context" then
+    -- Context entry (PR description, Jira ticket): icon + label, no status column
+    local is_selected = data.path == selected_path and data.group == selected_group
+    local label_hl = is_selected and "CodeDiffExplorerSelected" or "Normal"
+    line:append("  ", label_hl)
+    if data.icon and data.icon ~= "" then
+      line:append(data.icon .. " ", is_selected and label_hl or (data.icon_color or "Normal"))
+    end
+    line:append(node.text, label_hl)
   elseif data.type == "directory" then
     -- Directory node (tree view mode) - with indent markers
     local indent = build_indent_markers(data.indent_state)

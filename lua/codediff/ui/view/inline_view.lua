@@ -633,10 +633,11 @@ function M.show_single_file(tabpage, file_path, opts)
   welcome_window.sync_later(mod_win)
 end
 
---- Show the welcome page in the inline diff window
+--- Show a standalone buffer (welcome page, review context document) in the
+--- inline diff window, with no diff decorations.
 ---@param tabpage number
----@param load_bufnr number Welcome buffer created by welcome.create_buffer
-function M.show_welcome(tabpage, load_bufnr)
+---@param load_bufnr number
+function M.show_single_buffer(tabpage, load_bufnr)
   local session = lifecycle.get_session(tabpage)
   if not session then
     return
@@ -672,6 +673,13 @@ function M.show_welcome(tabpage, load_bufnr)
     path = nil,
   })
   welcome_window.sync_later(mod_win)
+end
+
+--- Show the welcome page in the inline diff window
+---@param tabpage number
+---@param load_bufnr number Welcome buffer created by welcome.create_buffer
+function M.show_welcome(tabpage, load_bufnr)
+  M.show_single_buffer(tabpage, load_bufnr)
 end
 
 return M

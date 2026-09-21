@@ -38,8 +38,22 @@ local function make_group(name, label, files, create_nodes, git_root, default_co
   }, create_nodes(files, git_root, name))
 end
 
+-- Review context group (PR description, Jira ticket). Present only for PR
+-- reviews, and deliberately not a file group: these entries are excluded from
+-- file cycling (see refresh.get_all_files).
+local function make_context_group(entries)
+  return Tree.Node({
+    text = string.format("Context (%d)", #entries),
+    data = {
+      type = "group",
+      name = "context",
+      collapse_key = "context:Context",
+    },
+  }, nodes.create_context_nodes(entries))
+end
+
 -- Create tree data structure from git status result
-function M.create_tree_data(status_result, git_root, base_revision, is_dir_mode, visible_groups)
+function M.create_tree_data(status_result, git_root, base_revision, is_dir_mode, visible_groups, context_entries)
   local explorer_config = config.options.explorer or {}
   local view_mode = explorer_config.view_mode or "list"
   visible_groups = visible_groups or explorer_config.visible_groups or {}
@@ -58,9 +72,17 @@ function M.create_tree_data(status_result, git_root, base_revision, is_dir_mode,
 
   local create_nodes = (view_mode == "tree") and nodes.create_tree_file_nodes or nodes.create_file_nodes
 
+  local function new_tree_nodes()
+    local tree_nodes = {}
+    if context_entries and #context_entries > 0 then
+      tree_nodes[#tree_nodes + 1] = make_context_group(context_entries)
+    end
+    return tree_nodes
+  end
+
   if is_dir_mode or base_revision then
     -- Dir or revision mode: single group showing all changes, with generated files collapsed separately.
-    local tree_nodes = {}
+    local tree_nodes = new_tree_nodes()
     tree_nodes[#tree_nodes + 1] = make_group("unstaged", "Changes", unstaged, create_nodes, git_root)
     if #generated_unstaged > 0 then
       tree_nodes[#tree_nodes + 1] = make_group("unstaged", "Generated files", generated_unstaged, create_nodes, git_root, true)
@@ -68,7 +90,7 @@ function M.create_tree_data(status_result, git_root, base_revision, is_dir_mode,
     return tree_nodes
   else
     -- Status mode: separate conflicts/staged/unstaged groups
-    local tree_nodes = {}
+    local tree_nodes = new_tree_nodes()
 
     -- Conflicts first (most important)
     if visible_groups.conflicts ~= false then

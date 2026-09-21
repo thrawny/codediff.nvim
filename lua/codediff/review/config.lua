@@ -8,6 +8,7 @@ local M = {}
 ---@field popup CodeDiffReviewPopupConfig
 ---@field export CodeDiffReviewExportConfig
 ---@field github CodeDiffReviewGithubConfig
+---@field jira CodeDiffReviewJiraConfig
 
 ---@class CodeDiffReviewCommentType
 ---@field key string
@@ -58,6 +59,10 @@ local M = {}
 ---@class CodeDiffReviewGithubConfig
 ---@field remote string
 ---@field pr_limit number
+
+---@class CodeDiffReviewJiraConfig
+---@field enabled boolean Show the Jira ticket in the review context group
+---@field cmd string Jira CLI executable
 
 ---@type CodeDiffReviewConfig
 M.defaults = {
@@ -116,6 +121,10 @@ M.defaults = {
   github = {
     remote = "origin",
     pr_limit = 100,
+  },
+  jira = {
+    enabled = true,
+    cmd = "jira",
   },
 }
 
