@@ -187,6 +187,7 @@ Setup entry point:
     },
     diff = {
       layout = "side-by-side",
+      wrap = false,
       disable_inlay_hints = true,
       max_computation_time_ms = 5000,
       hide_merge_artifacts = false,

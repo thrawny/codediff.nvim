@@ -102,6 +102,7 @@ This is intentionally minimal for now: comment storage/export now lives in `lua/
     -- Diff view behavior
     diff = {
       layout = "side-by-side",             -- Diff layout: "side-by-side" (two panes) or "inline" (single pane with virtual lines)
+      wrap = false,                        -- Wrap long lines instead of clipping them (wrapping breaks row alignment between side-by-side panes)
       disable_inlay_hints = true,         -- Disable inlay hints in diff windows for cleaner view
       max_computation_time_ms = 5000,     -- Maximum time for diff computation (VSCode default)
       ignore_whitespace = true,           -- Ignore whitespace-only differences, including indentation and internal spacing

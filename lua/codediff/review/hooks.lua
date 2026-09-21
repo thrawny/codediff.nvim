@@ -91,10 +91,15 @@ local function inherit_filetype_wrap_options(bufnr, win)
     return
   end
 
+  -- diff.wrap is an explicit opt-in, so a filetype default must not turn it off.
+  local wrap_forced = require("codediff.config").options.diff.wrap
+
   for _, option in ipairs(wrap_options) do
-    local ok, value = pcall(vim.filetype.get_option, ft, option)
-    if ok and value ~= nil then
-      pcall(vim.api.nvim_set_option_value, option, value, { win = win })
+    if not (wrap_forced and option == "wrap") then
+      local ok, value = pcall(vim.filetype.get_option, ft, option)
+      if ok and value ~= nil then
+        pcall(vim.api.nvim_set_option_value, option, value, { win = win })
+      end
     end
   end
 end

@@ -199,8 +199,8 @@ function M.compute_and_render_conflict(original_buf, modified_buf, base_lines, o
 
   -- Setup window options with scrollbind (filler lines enable proper alignment)
   if original_win and modified_win and vim.api.nvim_win_is_valid(original_win) and vim.api.nvim_win_is_valid(modified_win) then
-    vim.wo[original_win].wrap = false
-    vim.wo[modified_win].wrap = false
+    vim.wo[original_win].wrap = config.options.diff.wrap
+    vim.wo[modified_win].wrap = config.options.diff.wrap
 
     -- Reset scroll position and enable scrollbind
     vim.api.nvim_win_set_cursor(original_win, { 1, 0 })

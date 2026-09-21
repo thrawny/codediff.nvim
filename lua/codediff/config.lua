@@ -30,6 +30,8 @@ M.defaults = {
   -- Diff view behavior
   diff = {
     layout = "side-by-side", -- Diff layout: "side-by-side" or "inline"
+    wrap = false, -- Wrap long lines instead of clipping them. Wrapped lines break row alignment between side-by-side panes
+
     disable_inlay_hints = true, -- Disable inlay hints in diff windows for cleaner view
     semantic_tokens = false, -- Request LSP semantic tokens for virtual diff buffers (can be expensive for large diffs)
     max_computation_time_ms = 5000, -- Maximum time for diff computation (5 seconds, VSCode default)

@@ -121,7 +121,7 @@ function M.create(session_config, filetype, on_ready)
     end
 
     vim.wo[modified_win].cursorline = true
-    vim.wo[modified_win].wrap = false
+    vim.wo[modified_win].wrap = config.options.diff.wrap
 
     lifecycle.create_session(
       tabpage,
@@ -201,7 +201,7 @@ function M.create(session_config, filetype, on_ready)
   end
 
   vim.wo[modified_win].cursorline = true
-  vim.wo[modified_win].wrap = false
+  vim.wo[modified_win].wrap = config.options.diff.wrap
 
   local render_everything = function()
     if not vim.api.nvim_win_is_valid(modified_win) then
