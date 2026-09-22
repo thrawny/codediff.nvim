@@ -24,6 +24,18 @@ local function system(args, cwd)
   return vim.system(args, { cwd = cwd, text = true }):wait(10000)
 end
 
+-- The jira CLI colours and right-pads its output even under `--plain`, so its
+-- stdout arrives with SGR escapes and trailing spaces on every line.
+---@param text string
+---@return string
+local function sanitize(text)
+  text = text:gsub("\27%[[%d;]*m", "")
+  text = text:gsub("[^\n]*", function(line)
+    return (line:gsub("%s+$", ""))
+  end)
+  return vim.trim(text)
+end
+
 local function jira_config()
   local cfg = config.get()
   return vim.tbl_deep_extend("force", { enabled = true, cmd = "jira" }, cfg.jira or {})
@@ -101,7 +113,7 @@ function M.lines(entry, deps)
         local stderr = vim.trim((result.stderr or "") ~= "" and result.stderr or (result.stdout or ""))
         return nil, string.format("%s issue view %s failed: %s", jira.cmd, entry.key, stderr)
       end
-      entry.body = vim.trim(result.stdout or "")
+      entry.body = sanitize(result.stdout or "")
     end
   end
 
