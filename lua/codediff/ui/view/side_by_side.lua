@@ -404,7 +404,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
 
   -- Get existing session
   local session = lifecycle.get_session(tabpage)
-  if not session then
+  if not session or lifecycle.is_render_stale(tabpage, session_config.render_seq) then
     return false
   end
 
@@ -487,6 +487,12 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
       return
     end
 
+    -- Guard: Another file was selected while this one loaded; its render owns
+    -- the session now, so drop this one instead of overwriting it.
+    if lifecycle.is_render_stale(tabpage, session_config.render_seq) then
+      return
+    end
+
     -- Always read from buffers (single source of truth)
     local original_lines = vim.api.nvim_buf_get_lines(original_info.bufnr, 0, -1, false)
     local modified_lines = vim.api.nvim_buf_get_lines(modified_info.bufnr, 0, -1, false)
@@ -505,6 +511,9 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
         end
 
         vim.schedule(function()
+          if lifecycle.is_render_stale(tabpage, session_config.render_seq) then
+            return
+          end
           local conflict_diffs =
             compute_and_render_conflict(original_info.bufnr, modified_info.bufnr, base_lines, original_lines, modified_lines, original_win, modified_win, should_auto_scroll)
 

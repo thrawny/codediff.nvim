@@ -241,6 +241,20 @@ function M.begin_render(tabpage)
   return sess.render_seq
 end
 
+--- Check whether a newer render has started since `render_seq` began.
+--- Renders without a sequence number are never stale.
+--- @param tabpage number
+--- @param render_seq? number
+--- @return boolean
+function M.is_render_stale(tabpage, render_seq)
+  if not render_seq then
+    return false
+  end
+  local active_diffs = get_active_diffs()
+  local sess = active_diffs[tabpage]
+  return sess ~= nil and render_seq ~= (sess.render_seq or 0)
+end
+
 --- Check whether a render update is still in-flight for this session.
 --- @param tabpage number
 --- @return boolean

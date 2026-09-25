@@ -52,6 +52,7 @@ M.update_layout = accessors.update_layout
 M.update_diff_result = accessors.update_diff_result
 M.begin_render = accessors.begin_render
 M.is_render_pending = accessors.is_render_pending
+M.is_render_stale = accessors.is_render_stale
 M.queue_pending_navigation = accessors.queue_pending_navigation
 M.complete_render = accessors.complete_render
 M.update_changedtick = accessors.update_changedtick

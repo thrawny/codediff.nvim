@@ -341,7 +341,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
   local saved_current_win = vim.api.nvim_get_current_win()
 
   local session = lifecycle.get_session(tabpage)
-  if not session then
+  if not session or lifecycle.is_render_stale(tabpage, session_config.render_seq) then
     return false
   end
 
@@ -404,6 +404,15 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
       return
     end
     if not vim.api.nvim_buf_is_valid(orig_buf) or not vim.api.nvim_buf_is_valid(mod_buf) then
+      return
+    end
+    -- Another file was selected while this one loaded; its render owns the
+    -- session now, so drop this one instead of overwriting it.
+    if lifecycle.is_render_stale(tabpage, session_config.render_seq) then
+      pcall(vim.api.nvim_buf_delete, orig_buf, { force = true })
+      if modified_is_virtual and vim.fn.bufwinid(mod_buf) == -1 then
+        pcall(vim.api.nvim_buf_delete, mod_buf, { force = true })
+      end
       return
     end
 
