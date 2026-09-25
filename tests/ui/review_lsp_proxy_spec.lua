@@ -54,4 +54,34 @@ describe("codediff.review.lsp_proxy", function()
     assert.are.equal("file:///tmp/a.go", locations[1].uri)
     assert.are.equal("file:///tmp/b.go", locations[2].uri)
   end)
+
+  it("builds Snacks picker items from LSP locations", function()
+    local path = vim.fn.tempname() .. ".go"
+    vim.fn.writefile({ "package a", "  func Foo() {}" }, path)
+    local loc = {
+      uri = vim.uri_from_fname(path),
+      range = { start = { line = 1, character = 7 }, ["end"] = { line = 1, character = 10 } },
+    }
+
+    local items = proxy._test.picker_items_from_locations({ loc })
+    assert.are.equal(1, #items)
+    assert.are.equal(path, items[1].file)
+    assert.are.same({ 2, 7 }, items[1].pos)
+    assert.are.same({ 2, 10 }, items[1].end_pos)
+    assert.are.equal("func Foo() {}", items[1].line)
+    assert.are.equal(loc, items[1].location)
+    assert.is_nil(items[1].loc)
+  end)
+
+  it("recognises the reference under the cursor", function()
+    local loc = {
+      uri = "file:///tmp/a.go",
+      range = { start = { line = 3, character = 5 }, ["end"] = { line = 3, character = 9 } },
+    }
+
+    assert.is_true(proxy._test.is_cursor_location(loc, "file:///tmp/a.go", { line = 3, character = 7 }))
+    assert.is_false(proxy._test.is_cursor_location(loc, "file:///tmp/a.go", { line = 3, character = 10 }))
+    assert.is_false(proxy._test.is_cursor_location(loc, "file:///tmp/a.go", { line = 4, character = 7 }))
+    assert.is_false(proxy._test.is_cursor_location(loc, "file:///tmp/b.go", { line = 3, character = 7 }))
+  end)
 end)

@@ -68,6 +68,17 @@ local function flatten_locations(results)
   return locations
 end
 
+-- getbufline() is empty for buffers that are not loaded yet, which is most
+-- reference targets, so fall back to reading the line from disk.
+local function location_line(filename, lnum)
+  local bufnr = vim.fn.bufnr(filename)
+  if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+    return vim.fn.getbufline(bufnr, lnum)[1] or ""
+  end
+  local ok, lines = pcall(vim.fn.readfile, filename, "", lnum)
+  return ok and lines[lnum] or ""
+end
+
 local function qf_items_from_locations(locations)
   local items = {}
 
@@ -78,7 +89,7 @@ local function qf_items_from_locations(locations)
       filename = filename,
       lnum = lnum,
       col = loc.range.start.character + 1,
-      text = vim.trim((vim.fn.getbufline(vim.fn.bufadd(filename), lnum)[1] or "")),
+      text = vim.trim(location_line(filename, lnum)),
     })
   end
 
@@ -267,6 +278,61 @@ local function open_location_outside_review(tabpage, loc)
   vim.api.nvim_win_set_cursor(0, { line, column })
 end
 
+local function open_location(tabpage, session, loc)
+  if tabpage and session and route_review_location(tabpage, session, loc) then
+    return
+  end
+  open_location_outside_review(tabpage, loc)
+end
+
+-- Same item shape as Snacks' own LSP sources, so the "file" formatter and
+-- previewer render proxied results like a normal `gr`.
+local function picker_items_from_locations(locations)
+  local items = {}
+
+  for index, loc in ipairs(locations) do
+    local qf_item = qf_items_from_locations({ loc })[1]
+    table.insert(items, {
+      idx = index,
+      score = index,
+      text = qf_item.filename .. " " .. qf_item.text,
+      file = qf_item.filename,
+      pos = { loc.range.start.line + 1, loc.range.start.character },
+      end_pos = { loc.range["end"].line + 1, loc.range["end"].character },
+      line = qf_item.text,
+      -- Not `loc`: Snacks resolves that field as its own location format.
+      location = loc,
+    })
+  end
+
+  return items
+end
+
+local function pick_locations(locations, title, tabpage, session)
+  local ok, snacks = pcall(require, "snacks")
+  if not ok or not snacks.picker then
+    return false
+  end
+
+  snacks.picker.pick({
+    title = title,
+    items = picker_items_from_locations(locations),
+    format = "file",
+    confirm = function(picker, item)
+      picker:close()
+      if item then
+        open_location(tabpage, session, item.location)
+      end
+    end,
+  })
+  return true
+end
+
+local function is_cursor_location(loc, uri, position)
+  local range = loc.range
+  return loc.uri == uri and range.start.line == position.line and range.start.character <= position.character and range["end"].character >= position.character
+end
+
 local function open_locations(locations, title, jump_single, tabpage, session)
   if #locations == 0 then
     vim.notify("No " .. title:lower() .. " found", vim.log.levels.INFO)
@@ -274,11 +340,11 @@ local function open_locations(locations, title, jump_single, tabpage, session)
   end
 
   if jump_single and #locations == 1 then
-    local loc = locations[1]
-    if tabpage and session and route_review_location(tabpage, session, loc) then
-      return
-    end
-    open_location_outside_review(tabpage, loc)
+    open_location(tabpage, session, locations[1])
+    return
+  end
+
+  if pick_locations(locations, title, tabpage, session) then
     return
   end
 
@@ -384,7 +450,14 @@ local function proxy_location(tabpage, lhs)
     if lhs == "gd" then
       locations = follow_typescript_imports(real_buf, locations)
     end
-    open_locations(locations, spec.title, lhs ~= "gr", tabpage, session)
+    if lhs == "gr" then
+      -- Match Snacks' lsp_references: leave out the reference under the
+      -- cursor, then jump straight to a lone remaining one.
+      locations = vim.tbl_filter(function(loc)
+        return not is_cursor_location(loc, params.textDocument.uri, params.position)
+      end, locations)
+    end
+    open_locations(locations, spec.title, true, tabpage, session)
   end)
 end
 
@@ -419,7 +492,9 @@ local function proxy_hover(tabpage)
   end)
 end
 
-function M.apply_to_buffer(tabpage, bufnr, mapped)
+--- `track(mode, lhs)` is called before each key is mapped, so the caller can
+--- remember what the key was mapped to beforehand.
+function M.apply_to_buffer(tabpage, bufnr, track)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
@@ -431,20 +506,22 @@ function M.apply_to_buffer(tabpage, bufnr, mapped)
   end
 
   for lhs, spec in pairs(location_methods) do
+    -- nowait: Neovim's built-in grr/gra/grn/... would otherwise make `gr`
+    -- wait for another key and pop up which-key.
+    if track then
+      track("n", lhs)
+    end
     vim.keymap.set("n", lhs, function()
       proxy_location(tabpage, lhs)
-    end, { buffer = bufnr, desc = spec.desc, silent = true })
-    if mapped then
-      table.insert(mapped, { "n", lhs })
-    end
+    end, { buffer = bufnr, desc = spec.desc, silent = true, nowait = true })
   end
 
+  if track then
+    track("n", "K")
+  end
   vim.keymap.set("n", "K", function()
     proxy_hover(tabpage)
   end, { buffer = bufnr, desc = "Hover (review proxy)", silent = true })
-  if mapped then
-    table.insert(mapped, { "n", "K" })
-  end
 end
 
 function M.apply(tabpage)
@@ -462,6 +539,8 @@ M._test = {
   original_to_modified_line = original_to_modified_line,
   flatten_locations = flatten_locations,
   qf_items_from_locations = qf_items_from_locations,
+  picker_items_from_locations = picker_items_from_locations,
+  is_cursor_location = is_cursor_location,
   session_file_path = session_file_path,
   real_position = real_position,
 }

@@ -14,13 +14,39 @@ local function del_keymap(bufnr, mode, lhs)
   end
 end
 
+-- The modified side of a review can be the real working-tree buffer, which
+-- already has buffer-local maps of its own (LazyVim's LSP `gr`, `gd`, `K`).
+-- Remember them before overriding so clearing the review puts them back.
+local function buffer_mapping(bufnr, mode, lhs)
+  local map = vim.api.nvim_buf_call(bufnr, function()
+    return vim.fn.maparg(lhs, mode, false, true)
+  end)
+  if map.buffer == 1 then
+    return map
+  end
+end
+
+local function track_keymap(mapped, bufnr, mode, lhs)
+  table.insert(mapped, { mode, lhs, buffer_mapping(bufnr, mode, lhs) })
+end
+
 local function clear_buffer_keymaps(bufnr)
   local tracked = keymapped_buffers[bufnr]
-  if tracked then
-    for _, entry in ipairs(tracked) do
-      del_keymap(bufnr, entry[1], entry[2])
+  if not tracked then
+    return
+  end
+
+  -- Newest first, so a key overridden twice ends on its original mapping.
+  for i = #tracked, 1, -1 do
+    local entry = tracked[i]
+    del_keymap(bufnr, entry[1], entry[2])
+    if entry[3] and vim.api.nvim_buf_is_valid(bufnr) then
+      vim.api.nvim_buf_call(bufnr, function()
+        vim.fn.mapset(entry[3])
+      end)
     end
   end
+  keymapped_buffers[bufnr] = nil
 end
 
 local function get_explorer_owned_keymaps(bufnr)
@@ -159,8 +185,8 @@ local function set_buffer_keymaps(bufnr)
 
   local function set(lhs, rhs, desc)
     if is_enabled(lhs) and not explorer_owned_keymaps[lhs] then
+      track_keymap(mapped, bufnr, "n", lhs)
       vim.keymap.set("n", lhs, rhs, { buffer = bufnr, noremap = true, silent = true, nowait = true, desc = desc })
-      table.insert(mapped, { "n", lhs })
     end
   end
 
@@ -223,7 +249,9 @@ local function set_buffer_keymaps(bufnr)
   end, "Toggle readonly mode")
   set(km.show_help, show_help, "Show help")
 
-  require("codediff.review.lsp_proxy").apply_to_buffer(vim.api.nvim_get_current_tabpage(), bufnr, mapped)
+  require("codediff.review.lsp_proxy").apply_to_buffer(vim.api.nvim_get_current_tabpage(), bufnr, function(mode, lhs)
+    track_keymap(mapped, bufnr, mode, lhs)
+  end)
 
   keymapped_buffers[bufnr] = mapped
 end
