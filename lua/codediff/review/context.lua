@@ -1,6 +1,7 @@
 -- Review context documents (PR description, Jira ticket)
--- Only populated for PR reviews: `review.pr` stashes the PR here, and the
--- explorer consumes it when it builds its tree.
+-- Only populated for review sessions: `review` stashes the entries here, and
+-- the explorer consumes them when it builds its tree. PR reviews get the PR and
+-- its Jira ticket; other reviews get the ticket named in the branch, if any.
 local M = {}
 
 local config = require("codediff.review.config")
@@ -51,6 +52,23 @@ function M.jira_key(text)
   return text:match(JIRA_KEY_PATTERN)
 end
 
+---@param key string
+---@return CodeDiffReviewContextEntry|nil
+local function jira_entry(key)
+  if not key or not jira_config().enabled then
+    return nil
+  end
+  return {
+    id = "context:jira",
+    label = key,
+    icon = "\u{f02b}", -- Nerd Font: tag
+    icon_color = "ReviewContextJira",
+    kind = "jira",
+    title = key,
+    key = key,
+  }
+end
+
 --- Build the context entries for a PR.
 ---@param pr table
 ---@return CodeDiffReviewContextEntry[]
@@ -68,20 +86,32 @@ function M.entries_for_pr(pr)
     url = pr.url,
   }
 
-  local key = M.jira_key(pr.title) or M.jira_key(pr.headRefName)
-  if key and jira_config().enabled then
-    entries[#entries + 1] = {
-      id = "context:jira",
-      label = key,
-      icon = "\u{f02b}", -- Nerd Font: tag
-      icon_color = "ReviewContextJira",
-      kind = "jira",
-      title = key,
-      key = key,
-    }
-  end
+  entries[#entries + 1] = jira_entry(M.jira_key(pr.title) or M.jira_key(pr.headRefName))
 
   return entries
+end
+
+--- Build the context entries for a review without a PR: the Jira ticket named
+--- in the reviewed revision, or failing that in the checked-out branch.
+---@param revision string|nil
+---@param deps? table
+---@return CodeDiffReviewContextEntry[]
+function M.entries_for_revision(revision, deps)
+  deps = deps or {}
+  local key = M.jira_key(revision)
+  if not key and jira_config().enabled then
+    local result = (deps.system or system)({ "git", "rev-parse", "--abbrev-ref", "HEAD" }, deps.cwd)
+    if result.code == 0 then
+      key = M.jira_key(vim.trim(result.stdout or ""))
+    end
+  end
+  return { jira_entry(key) }
+end
+
+--- Whether entries are already stashed for the next explorer.
+---@return boolean
+function M.has_pending()
+  return pending ~= nil
 end
 
 --- Stash entries for the explorer that is about to be created.

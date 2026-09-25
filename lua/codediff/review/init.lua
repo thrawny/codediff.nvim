@@ -84,11 +84,29 @@ local function mark_review_session(tabpage)
   return true
 end
 
+-- Directory the session's git commands should run in: the current file's, or
+-- the cwd when the buffer is not a file.
+local function current_dir()
+  local buf = vim.api.nvim_get_current_buf()
+  local path = vim.api.nvim_buf_get_name(buf)
+  if path == "" or vim.bo[buf].buftype ~= "" then
+    return vim.fn.getcwd()
+  end
+  return vim.fn.fnamemodify(path, ":p:h")
+end
+
 local function open_codediff_with_revisions(rev1, rev2)
   local ok = pcall(require, "codediff")
   if not ok then
     vim.notify("codediff.nvim is required", vim.log.levels.ERROR, { title = "codediff.review" })
     return
+  end
+
+  -- A PR review has already stashed its context; any other review gets the
+  -- Jira ticket named in its revision or branch.
+  local context = require("codediff.review.context")
+  if not context.has_pending() then
+    context.set_pending(context.entries_for_revision(rev2, { cwd = current_dir() }))
   end
 
   if rev1 and rev2 then

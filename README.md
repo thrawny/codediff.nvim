@@ -31,8 +31,10 @@ explorer, LSP-aware navigation and `<Tab>`/`<S-Tab>` to walk the files.
 - `:CodeReview close` — close the session
 - `:CodeReview toggle` — switch between readonly and edit mode
 
-A PR review also gets a Context group above Changes, holding the PR description
-and the Jira ticket named in the PR title or branch.
+A review gets a Context group above Changes when it has something to show. A PR
+review holds the PR description and the Jira ticket named in the PR title or
+branch. Any other review holds the Jira ticket named in the reviewed revision or
+the checked-out branch.
 
 
 - **Two-tier highlighting system**:
