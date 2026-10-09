@@ -1,6 +1,7 @@
 -- Structural diff views. Seams mode folds implementation bodies. Focused
 -- mode also removes unchanged seams and implementation-only changes, leaving
--- changed signatures and data declarations.
+-- changed signatures and data declarations. File mode shows the file as it
+-- is now: one pane, no diff markup.
 local M = {}
 
 local lifecycle = require("codediff.ui.lifecycle")
@@ -624,6 +625,58 @@ local function enable_side_by_side(session, diff_result, tabpage, mode, silent)
   return true
 end
 
+---Switch layout on behalf of file mode. The switch re-renders the current
+---file; the render hook then applies file mode to the new layout.
+local function switch_layout(session, tabpage)
+  session.skeleton_switching_layout = true
+  local ok = require("codediff.ui.view.toggle").toggle(tabpage)
+  session.skeleton_switching_layout = nil
+  return ok
+end
+
+local function enable_file(session, tabpage, silent)
+  if session.layout ~= "inline" and not session.single_pane then
+    if session.result_win and vim.api.nvim_win_is_valid(session.result_win) then
+      notify(silent, "Skeleton view: no file view in conflict mode", vim.log.levels.WARN)
+      return false
+    end
+    -- Hiding the old pane is the inline layout, so borrow it and switch back
+    -- when file mode ends.
+    session.skeleton_want = "file"
+    session.skeleton_file_layout = session.layout
+    ensure_autocmds()
+    if switch_layout(session, tabpage) then
+      return true
+    end
+    session.skeleton_want = nil
+    session.skeleton_file_layout = nil
+    return false
+  end
+
+  for _, buf in ipairs({ session.original_bufnr, session.modified_bufnr }) do
+    if buf then
+      lifecycle.clear_highlights(buf)
+    end
+  end
+  session.skeleton = { saved = {}, mode = "file", spacer_bufs = {} }
+  return true
+end
+
+---Bring the diff markup back after file mode on the file still on screen.
+local function leave_file(session, tabpage)
+  if session.skeleton_file_layout then
+    session.skeleton_file_layout = nil
+    switch_layout(session, tabpage)
+    return
+  end
+  -- Single-file views (added, untracked, deleted) have no markup to restore,
+  -- and recomputing a diff for them would mark every line as added.
+  local diff_result = session.stored_diff_result
+  if session.layout == "inline" and diff_result and diff_result.changes and #diff_result.changes > 0 then
+    require("codediff.ui.view.inline_view").rerender(tabpage)
+  end
+end
+
 ---Keep the cursor out of content this view hides after a file switch.
 ---Selecting a file jumps to its first change before these folds exist, so
 ---that landing spot can end up inside a folded body; move on to the first
@@ -662,13 +715,23 @@ local function reveal_cursor(session)
 end
 
 ---@param tabpage number
----@param opts? { mode?: "seams"|"focused", silent?: boolean } silent suppresses notifications (auto re-apply)
+---@param opts? { mode?: "seams"|"focused"|"file", silent?: boolean } silent suppresses notifications (auto re-apply)
 function M.enable(tabpage, opts)
   local silent = opts ~= nil and opts.silent == true
   local requested_mode = (opts and opts.mode) or "seams"
   local session = lifecycle.get_session(tabpage)
   if not session then
     return false
+  end
+
+  if requested_mode == "file" then
+    if not enable_file(session, tabpage, silent) then
+      return false
+    end
+    session.skeleton_path = session.modified_path
+    session.skeleton_want = "file"
+    ensure_autocmds()
+    return true
   end
 
   -- A new file has no old side to focus against. Treat every callable as a
@@ -721,21 +784,40 @@ end
 
 function M.disable(tabpage)
   local session = lifecycle.get_session(tabpage)
-  if session then
-    session.skeleton_want = nil
-    session.skeleton_path = nil
-  end
-  if not session or not session.skeleton then
+  if not session then
     return
   end
-  for win, opts in pairs(session.skeleton.saved) do
-    restore_window(win, opts)
+  local was_file = session.skeleton_want == "file"
+  session.skeleton_want = nil
+  session.skeleton_path = nil
+  if session.skeleton then
+    for win, opts in pairs(session.skeleton.saved) do
+      restore_window(win, opts)
+    end
+    clear_spacers(session.skeleton)
+    session.skeleton = nil
   end
-  clear_spacers(session.skeleton)
-  session.skeleton = nil
+  if was_file then
+    leave_file(session, tabpage)
+  end
 end
 
----Cycle the view mode: off → seams only → focused seams → off.
+---Called by the layout toggle before it recreates windows and buffers. A
+---layout switch the user asks for ends file mode, which is itself a layout.
+function M.on_layout_toggle(tabpage)
+  M.reset(tabpage)
+  local session = lifecycle.get_session(tabpage)
+  if session and session.skeleton_want == "file" and not session.skeleton_switching_layout then
+    session.skeleton_want = nil
+    session.skeleton_path = nil
+    session.skeleton_file_layout = nil
+  end
+end
+
+local MODE_NAMES = { seams = "seams only", focused = "focused seams", file = "current file" }
+
+---Cycle the view mode: off → seams only → focused seams → current file → off.
+---Modes that need a treesitter parser are skipped when there is none.
 function M.cycle(tabpage)
   tabpage = tabpage or vim.api.nvim_get_current_tabpage()
   local session = lifecycle.get_session(tabpage)
@@ -744,20 +826,20 @@ function M.cycle(tabpage)
   end
 
   local current = session.skeleton_want
-  if current == nil then
-    if M.enable(tabpage, { mode = "seams", silent = true }) then
-      vim.notify("Skeleton view: seams only", vim.log.levels.INFO)
-    elseif M.enable(tabpage, { mode = "focused" }) then
-      vim.notify("Skeleton view: focused seams", vim.log.levels.INFO)
-    end
-  elseif current == "seams" then
-    M.reset(tabpage)
-    if M.enable(tabpage, { mode = "focused" }) then
-      vim.notify("Skeleton view: focused seams", vim.log.levels.INFO)
-    end
-  else
+  if current == "file" then
     M.disable(tabpage)
     vim.notify("Skeleton view: off", vim.log.levels.INFO)
+    return
+  end
+
+  local order = { "seams", "focused", "file" }
+  local start = current == nil and 1 or current == "seams" and 2 or 3
+  M.reset(tabpage)
+  for i = start, #order do
+    if M.enable(tabpage, { mode = order[i], silent = order[i] ~= "file" }) then
+      vim.notify("Skeleton view: " .. MODE_NAMES[order[i]], vim.log.levels.INFO)
+      return
+    end
   end
 end
 

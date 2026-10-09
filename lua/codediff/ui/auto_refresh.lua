@@ -105,16 +105,21 @@ local function do_diff_update(bufnr, skip_watcher_check)
     -- (or drop them if the skeleton view is off). Skeleton state can only
     -- exist if the module is already loaded.
     local skeleton = package.loaded["codediff.ui.view.skeleton"]
-    if skeleton then
-      skeleton.on_diff_refresh(tabpage)
-    end
 
     -- Check if this is an inline mode session
     local session = lifecycle.get_session(tabpage)
     if session and session.layout == "inline" then
       local inline_mod = require("codediff.ui.inline")
       inline_mod.render_inline_diff(modified_bufnr, lines_diff, original_lines, modified_lines)
+      -- After the render: the skeleton's file mode clears this markup again
+      if skeleton then
+        skeleton.on_diff_refresh(tabpage)
+      end
       return
+    end
+
+    if skeleton then
+      skeleton.on_diff_refresh(tabpage)
     end
 
     -- Side-by-side mode: Update decorations on both buffers

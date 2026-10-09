@@ -834,4 +834,94 @@ describe("Layout toggle", function()
     assert.is_false(view.toggle_layout(tabpage))
     assert.equals("side-by-side", session.layout)
   end)
+
+  describe("skeleton file mode", function()
+    local skeleton = require("codediff.ui.view.skeleton")
+    local highlights = require("codediff.ui.highlights")
+
+    local function mark_count(bufnr, ns)
+      return #vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
+    end
+
+    local function diff_marks(session)
+      local buf = session.modified_bufnr
+      return mark_count(buf, inline.ns_inline) + mark_count(buf, highlights.ns_highlight)
+    end
+
+    local function wait_for_file_mode(tabpage)
+      wait_for(tabpage, function(session)
+        return session.layout == "inline" and session.skeleton and session.skeleton.mode == "file" and diff_marks(session) == 0
+      end, "File mode should show one pane without diff markup")
+    end
+
+    -- Plain text has no treesitter parser, so the seam modes are skipped
+    -- and the first press lands on the current file.
+    local function open_text_diff()
+      local tabpage, left, right = create_standalone_diff({ "keep", "old one", "middle", "old two", "tail" }, { "keep", "new one", "middle", "new two", "tail" })
+      track(left)
+      track(right)
+      return tabpage
+    end
+
+    it("switches side-by-side to one plain pane and back", function()
+      local tabpage = open_text_diff()
+
+      skeleton.cycle(tabpage)
+      wait_for_file_mode(tabpage)
+      local session = lifecycle.get_session(tabpage)
+      assert.equals("file", session.skeleton_want)
+
+      skeleton.cycle(tabpage)
+      wait_for(tabpage, function(s)
+        return s.layout == "side-by-side" and s.original_win ~= s.modified_win and s.skeleton == nil and diff_marks(s) > 0
+      end, "Cycling off should restore the side-by-side diff")
+      assert.is_nil(session.skeleton_want)
+    end)
+
+    it("stays inline and restores inline markup when started inline", function()
+      local tabpage = open_text_diff()
+      assert.is_true(view.toggle_layout(tabpage))
+      wait_for(tabpage, function(session)
+        return session.layout == "inline" and mark_count(session.modified_bufnr, inline.ns_inline) > 0
+      end, "Inline diff should render")
+
+      skeleton.cycle(tabpage)
+      wait_for_file_mode(tabpage)
+
+      skeleton.cycle(tabpage)
+      wait_for(tabpage, function(session)
+        return session.layout == "inline" and session.skeleton == nil and mark_count(session.modified_bufnr, inline.ns_inline) > 0
+      end, "Cycling off should restore the inline markup")
+    end)
+
+    it("keeps the markup off after an edit", function()
+      local tabpage = open_text_diff()
+      skeleton.cycle(tabpage)
+      wait_for_file_mode(tabpage)
+
+      local session = lifecycle.get_session(tabpage)
+      vim.api.nvim_buf_set_lines(session.modified_bufnr, 0, 1, false, { "edited" })
+      require("codediff.ui.auto_refresh").trigger(session.modified_bufnr)
+      wait_for(tabpage, function(s)
+        return s.stored_diff_result.changes[1].modified.start_line == 1
+      end, "The edit should refresh the diff")
+      assert.equals(0, diff_marks(session))
+      assert.equals("file", session.skeleton.mode)
+    end)
+
+    it("ends file mode on a manual layout toggle", function()
+      local tabpage = open_text_diff()
+      skeleton.cycle(tabpage)
+      wait_for_file_mode(tabpage)
+
+      assert.is_true(view.toggle_layout(tabpage))
+      wait_for(tabpage, function(session)
+        return session.layout == "side-by-side" and session.original_win ~= session.modified_win and diff_marks(session) > 0
+      end, "A manual toggle should show the side-by-side diff")
+      vim.wait(200)
+      local session = lifecycle.get_session(tabpage)
+      assert.is_nil(session.skeleton_want)
+      assert.equals("side-by-side", session.layout)
+    end)
+  end)
 end)

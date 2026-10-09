@@ -48,7 +48,7 @@ the checked-out branch.
 - **Pierre-based diff engine** — the same [@pierre/diffs](https://github.com/pierredotco/diffs) core that powers [Hunk](https://github.com/modem-dev/hunk), running in a long-lived Bun sidecar process
 - **Async git operations** - non-blocking file retrieval from git
 - **Moved code detection** — identifies blocks of code that moved within a file, with visual indicators (highlights, signs, annotations) matching VSCode's experimental `showMoves` feature (opt-in)
-- **Skeleton view** — `s` cycles off → seams-only → focused seams. Seams-only folds function bodies, leaving signatures and declarations visible for a structural scan. Focused seams hides implementation and import changes, then shows only changed signatures and top-level declarations; changed structs, interfaces, enums, and type declarations appear in full. Added files fall back to seams-only because there is no original version to focus against. Virtual blank rows pad each hidden-lines marker above and below. Works in both layouts and stays on across file switches until toggled off
+- **Skeleton view** — `s` cycles off → seams-only → focused seams → current file. Seams-only folds function bodies, leaving signatures and declarations visible for a structural scan. Focused seams hides implementation and import changes, then shows only changed signatures and top-level declarations; changed structs, interfaces, enums, and type declarations appear in full. Added files fall back to seams-only because there is no original version to focus against. Virtual blank rows pad each hidden-lines marker above and below. Current file shows the file as it is now, in one pane with no diff markup; from side-by-side it switches to the inline layout and back when you cycle on. Files without a treesitter parser skip the seam modes. Works in both layouts and stays on across file switches until toggled off
 
 ## Installation
 
@@ -191,7 +191,7 @@ the checked-out branch.
         show_help = "g?",   -- Show floating window with available keymaps
         align_move = "gm", -- Temporarily align moved code blocks across panes
         toggle_layout = "t", -- Toggle between side-by-side and inline layout
-        toggle_skeleton = "s", -- Cycle skeleton view (off/seams-only/focused-seams); sticky across file switches
+        toggle_skeleton = "s", -- Cycle skeleton view (off/seams-only/focused-seams/current-file); sticky across file switches
       },
       explorer = {
         select = "<CR>",    -- Open diff for selected file

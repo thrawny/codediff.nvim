@@ -124,7 +124,7 @@ M.defaults = {
       hunk_textobject = "ih", -- Textobject for hunk (vih to select, yih to yank, etc.)
       align_move = "gm", -- Temporarily align other pane to show paired moved code
       toggle_layout = "t", -- Toggle diff layout for the current codediff session
-      toggle_skeleton = "s", -- Cycle skeleton view (off/seams-only/focused-seams); sticky across file switches
+      toggle_skeleton = "s", -- Cycle skeleton view (off/seams-only/focused-seams/current-file); sticky across file switches
       show_help = "g?", -- Show floating window with available keymaps
     },
     explorer = {

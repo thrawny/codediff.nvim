@@ -103,7 +103,7 @@ function M.toggle(tabpage)
   -- Skeleton state can only exist if the module is already loaded.
   local skeleton = package.loaded["codediff.ui.view.skeleton"]
   if skeleton then
-    skeleton.reset(tabpage)
+    skeleton.on_layout_toggle(tabpage)
   end
 
   local target_layout = session.layout == "inline" and "side-by-side" or "inline"
