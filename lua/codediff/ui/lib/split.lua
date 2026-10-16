@@ -46,9 +46,12 @@ function Split:_apply_win_options()
   if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
     return
   end
+  -- Set only the local value, like :setlocal. vim.wo[win][k] acts like :set
+  -- and also changes the window's global value, which every window or tab
+  -- opened from this one then inherits.
   for k, v in pairs(self._win_options) do
     pcall(function()
-      vim.wo[self.winid][k] = v
+      vim.wo[self.winid][0][k] = v
     end)
   end
 end
