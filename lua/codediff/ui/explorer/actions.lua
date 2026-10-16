@@ -225,15 +225,17 @@ function M.open_context(explorer, entry)
       require("codediff.ui.view.side_by_side").show_document(explorer.tabpage, bufnr, render_seq)
     end
 
-    -- Documents read better without the diff gutter.
+    -- Documents read better without the diff gutter. Set it locally, so the
+    -- next file shown in this window gets its gutter back.
     local sess = lifecycle.get_session(explorer.tabpage)
     local win = sess and sess.modified_win
     if win and vim.api.nvim_win_is_valid(win) then
-      vim.wo[win].number = false
-      vim.wo[win].relativenumber = false
-      vim.wo[win].signcolumn = "no"
-      vim.wo[win].wrap = true
-      vim.wo[win].linebreak = true
+      local wo = vim.wo[win][0]
+      wo.number = false
+      wo.relativenumber = false
+      wo.signcolumn = "no"
+      wo.wrap = true
+      wo.linebreak = true
     end
   end)
 end
