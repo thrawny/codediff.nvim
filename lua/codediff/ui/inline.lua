@@ -391,6 +391,7 @@ function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines
 
   local buf_line_count = vim.api.nvim_buf_line_count(bufnr)
   local highlight_priority = config.options.diff.highlight_priority
+  local modified_ranges = {}
 
   for _, mapping in ipairs(diff_result.changes) do
     local orig_start = mapping.original.start_line
@@ -433,32 +434,30 @@ function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines
       })
     end
 
-    -- Step 2: Highlight added/modified lines on the real buffer
+    -- Step 2: Collect added/modified lines, highlighted after the loop
     if has_modified then
-      local hl_group = has_original and "CodeDiffLineInsert" or "CodeDiffLineInsert"
-
-      for line = mod_start, mod_end - 1 do
-        if line > buf_line_count then
-          break
-        end
-
-        local line_idx = line - 1
-        if not (config.options.diff.ignore_whitespace and (modified_lines[line] or ""):match("^%s*$")) then
-          pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_inline, line_idx, 0, {
-            end_line = line_idx + 1,
-            end_col = 0,
-            hl_group = hl_group,
-            hl_eol = true,
-            priority = highlight_priority,
-          })
-        end
-      end
+      table.insert(modified_ranges, mapping.modified)
     end
 
     -- Step 3: Character-level highlights on modified buffer lines
     if has_modified and mapping.inner_changes then
       apply_modified_char_highlights(bufnr, mapping.inner_changes, modified_lines)
     end
+  end
+
+  for _, line in ipairs(highlights.changed_lines(modified_ranges, modified_lines)) do
+    if line > buf_line_count then
+      break
+    end
+
+    local line_idx = line - 1
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_inline, line_idx, 0, {
+      end_line = line_idx + 1,
+      end_col = 0,
+      hl_group = "CodeDiffLineInsert",
+      hl_eol = true,
+      priority = highlight_priority,
+    })
   end
 end
 

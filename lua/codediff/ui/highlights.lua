@@ -244,4 +244,44 @@ function M.setup()
   })
 end
 
+-- Lines to give a changed-line background, from 1-based end-exclusive ranges.
+-- When whitespace is ignored, blank lines in a range are left out, so a lone
+-- added blank line stays plain. A run of blank lines between two coloured
+-- lines is coloured too, even when the diff matched it as unchanged, so one
+-- added block reads as one block.
+function M.changed_lines(ranges, lines)
+  local skip_blank = config.options.diff.ignore_whitespace
+  local is_blank = function(line)
+    return (lines[line] or ""):match("^%s*$") ~= nil
+  end
+
+  local changed = {}
+  for _, range in ipairs(ranges) do
+    for line = range.start_line, range.end_line - 1 do
+      if not (skip_blank and is_blank(line)) then
+        changed[line] = true
+      end
+    end
+  end
+
+  local sorted = vim.tbl_keys(changed)
+  table.sort(sorted)
+  for i = 1, #sorted - 1 do
+    local above, below = sorted[i], sorted[i + 1]
+    local gap_is_blank = below - above > 1
+    for line = above + 1, below - 1 do
+      gap_is_blank = gap_is_blank and is_blank(line)
+    end
+    if gap_is_blank then
+      for line = above + 1, below - 1 do
+        changed[line] = true
+      end
+    end
+  end
+
+  sorted = vim.tbl_keys(changed)
+  table.sort(sorted)
+  return sorted
+end
+
 return M

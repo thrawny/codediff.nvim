@@ -397,6 +397,30 @@ describe("Render Core", function()
     vim.api.nvim_buf_delete(right_buf, {force = true})
   end)
 
+  it("Highlights blank lines between changed lines when whitespace is ignored", function()
+    local left_buf = vim.api.nvim_create_buf(false, true)
+    local right_buf = vim.api.nvim_create_buf(false, true)
+    local original = {"a", "", "old()", ""}
+    local modified = {"a", "", "new()", "", "two()", "", "three()", ""}
+
+    vim.api.nvim_buf_set_lines(left_buf, 0, -1, false, original)
+    vim.api.nvim_buf_set_lines(right_buf, 0, -1, false, modified)
+
+    local lines_diff = diff.compute_diff(original, modified, { ignore_whitespace = true })
+    core.render_diff(left_buf, right_buf, original, modified, lines_diff)
+
+    local rows = {}
+    for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(right_buf, highlights.ns_highlight, 0, -1, { details = true })) do
+      if mark[4].hl_group == "CodeDiffLineInsert" then
+        rows[#rows + 1] = mark[2] + 1
+      end
+    end
+    assert.same({3, 4, 5, 6, 7}, rows)
+
+    vim.api.nvim_buf_delete(left_buf, {force = true})
+    vim.api.nvim_buf_delete(right_buf, {force = true})
+  end)
+
   -- Test 15: Empty file vs file with content
   it("Handles diff between empty file and file with content", function()
     local left_buf = vim.api.nvim_create_buf(false, true)

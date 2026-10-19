@@ -57,23 +57,16 @@ end
 -- Step 1: Line-Level Highlights
 -- ============================================================================
 
-local function apply_line_highlights(bufnr, line_range, hl_group, lines)
-  if line_range.end_line <= line_range.start_line then
-    return
-  end
-
+-- ranges: 1-based end-exclusive line ranges, all on bufnr
+local function apply_line_highlights(bufnr, ranges, hl_group, lines)
   local line_count = vim.api.nvim_buf_line_count(bufnr)
 
-  for line = line_range.start_line, line_range.end_line - 1 do
+  for _, line in ipairs(highlights.changed_lines(ranges, lines)) do
     if line > line_count then
       break
     end
 
     local line_idx = line - 1
-    if config.options.diff.ignore_whitespace and (lines[line] or ""):match("^%s*$") then
-      goto continue
-    end
-
     vim.api.nvim_buf_set_extmark(bufnr, ns_highlight, line_idx, 0, {
       end_line = line_idx + 1,
       end_col = 0,
@@ -81,8 +74,6 @@ local function apply_line_highlights(bufnr, line_range, hl_group, lines)
       hl_eol = true,
       priority = config.options.diff.highlight_priority,
     })
-
-    ::continue::
   end
 end
 
@@ -328,17 +319,11 @@ function M.render_diff(left_bufnr, right_bufnr, original_lines, modified_lines, 
   local last_orig_line = 1
   local last_mod_line = 1
 
+  local left_ranges, right_ranges = {}, {}
+
   for _, mapping in ipairs(lines_diff.changes) do
-    local orig_is_empty = (mapping.original.end_line <= mapping.original.start_line)
-    local mod_is_empty = (mapping.modified.end_line <= mapping.modified.start_line)
-
-    if not orig_is_empty then
-      apply_line_highlights(left_bufnr, mapping.original, "CodeDiffLineDelete", original_lines)
-    end
-
-    if not mod_is_empty then
-      apply_line_highlights(right_bufnr, mapping.modified, "CodeDiffLineInsert", modified_lines)
-    end
+    table.insert(left_ranges, mapping.original)
+    table.insert(right_ranges, mapping.modified)
 
     if mapping.inner_changes then
       for _, inner in ipairs(mapping.inner_changes) do
@@ -367,6 +352,9 @@ function M.render_diff(left_bufnr, right_bufnr, original_lines, modified_lines, 
       end
     end
   end
+
+  apply_line_highlights(left_bufnr, left_ranges, "CodeDiffLineDelete", original_lines)
+  apply_line_highlights(right_bufnr, right_ranges, "CodeDiffLineInsert", modified_lines)
 
   -- Render moved code indicators (separate module)
   if lines_diff.moves and #lines_diff.moves > 0 then
@@ -413,6 +401,8 @@ function M.render_single_buffer(bufnr, diff, side)
     char_hl = "CodeDiffCharInsert"
   end
 
+  local ranges = {}
+
   for _, mapping in ipairs(diff.changes) do
     -- Get the range for our side
     local range = mapping[side]
@@ -420,12 +410,7 @@ function M.render_single_buffer(bufnr, diff, side)
       goto continue
     end
 
-    local is_empty = (range.end_line <= range.start_line)
-
-    -- Apply line highlights
-    if not is_empty then
-      apply_line_highlights(bufnr, range, line_hl, lines)
-    end
+    table.insert(ranges, range)
 
     -- Apply character highlights from inner changes
     if mapping.inner_changes then
@@ -439,6 +424,8 @@ function M.render_single_buffer(bufnr, diff, side)
 
     ::continue::
   end
+
+  apply_line_highlights(bufnr, ranges, line_hl, lines)
 end
 
 -- ============================================================================
@@ -475,10 +462,10 @@ function M.render_merge_view(left_bufnr, right_bufnr, base_to_left_diff, base_to
 
   -- Render highlights ONLY for conflict regions (where both left and right modified the same base region)
   -- This matches VSCode's behavior of only highlighting conflicting changes
+  local left_ranges = {}
   for _, change in ipairs(conflict_left_changes) do
-    local range = change.modified
-    if range and range.end_line > range.start_line then
-      apply_line_highlights(left_bufnr, range, "CodeDiffLineInsert", left_lines)
+    if change.modified then
+      table.insert(left_ranges, change.modified)
     end
     if change.inner_changes then
       for _, inner in ipairs(change.inner_changes) do
@@ -490,10 +477,10 @@ function M.render_merge_view(left_bufnr, right_bufnr, base_to_left_diff, base_to
     end
   end
 
+  local right_ranges = {}
   for _, change in ipairs(conflict_right_changes) do
-    local range = change.modified
-    if range and range.end_line > range.start_line then
-      apply_line_highlights(right_bufnr, range, "CodeDiffLineInsert", right_lines)
+    if change.modified then
+      table.insert(right_ranges, change.modified)
     end
     if change.inner_changes then
       for _, inner in ipairs(change.inner_changes) do
@@ -504,6 +491,9 @@ function M.render_merge_view(left_bufnr, right_bufnr, base_to_left_diff, base_to
       end
     end
   end
+
+  apply_line_highlights(left_bufnr, left_ranges, "CodeDiffLineInsert", left_lines)
+  apply_line_highlights(right_bufnr, right_ranges, "CodeDiffLineInsert", right_lines)
 
   -- Extract fillers from alignments
   local left_fillers, right_fillers = alignments.left_fillers, alignments.right_fillers
