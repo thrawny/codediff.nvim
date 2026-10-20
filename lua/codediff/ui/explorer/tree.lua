@@ -22,8 +22,9 @@ local function split_generated(files, git_root)
   local file_filter = explorer_config.file_filter or {}
   local generated_patterns = file_filter.generated or {}
   local use_gitattributes = file_filter.gitattributes_generated ~= false
+  local use_header = file_filter.header_generated ~= false
 
-  return filter.split_generated(files, generated_patterns, git_root, use_gitattributes)
+  return filter.split_generated(files, generated_patterns, git_root, use_gitattributes, use_header)
 end
 
 local function make_group(name, label, files, create_nodes, git_root, default_collapsed)

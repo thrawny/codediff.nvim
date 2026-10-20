@@ -1,6 +1,10 @@
 local M = {}
 
 local gitattributes_cache = {}
+local header_cache = {}
+
+-- Generators put their marker above the code, so the first few KB is enough.
+local HEADER_BYTES = 4096
 
 -- Convert glob pattern to Lua pattern
 -- A `**/` here means "one or more directories"; M.glob_to_patterns also emits a
@@ -224,7 +228,47 @@ function M.matches_gitattributes_generated(path, git_root)
   return generated == true
 end
 
-function M.is_generated(path, generated_patterns, git_root, use_gitattributes)
+-- Go's marker (https://go.dev/s/generatedcode). Other generators copy it behind
+-- their own comment prefix, so match it anywhere on a line in the file's head.
+function M.has_generated_header(head)
+  return head ~= nil and head:find("Code generated [^\n]- DO NOT EDIT") ~= nil
+end
+
+-- Reads the working-tree copy, so a deleted file never matches, and history
+-- views judge a past commit's file by its current content.
+function M.matches_generated_header(path, git_root)
+  if not git_root or git_root == "" then
+    return false
+  end
+
+  local file_path = git_root .. "/" .. path
+  local uv = vim.uv or vim.loop
+  local stat = uv and uv.fs_stat(file_path) or nil
+  if not stat or stat.type ~= "file" then
+    header_cache[file_path] = nil
+    return false
+  end
+
+  local mtime = stat.mtime and (stat.mtime.sec .. ":" .. stat.mtime.nsec) or ""
+  local cache_key = table.concat({ tostring(stat.size or 0), mtime }, ":")
+  local cached = header_cache[file_path]
+  if cached and cached.cache_key == cache_key then
+    return cached.generated
+  end
+
+  local file = io.open(file_path, "rb")
+  if not file then
+    return false
+  end
+  local head = file:read(HEADER_BYTES)
+  file:close()
+
+  local generated = M.has_generated_header(head)
+  header_cache[file_path] = { cache_key = cache_key, generated = generated }
+  return generated
+end
+
+function M.is_generated(path, generated_patterns, git_root, use_gitattributes, use_header)
   if M.matches_any_pattern(path, generated_patterns) then
     return true
   end
@@ -233,17 +277,21 @@ function M.is_generated(path, generated_patterns, git_root, use_gitattributes)
     return true
   end
 
+  if use_header ~= false and M.matches_generated_header(path, git_root) then
+    return true
+  end
+
   return false
 end
 
-function M.split_generated(files, generated_patterns, git_root, use_gitattributes)
+function M.split_generated(files, generated_patterns, git_root, use_gitattributes, use_header)
   local regular = {}
   local generated = {}
 
   for _, file in ipairs(files or {}) do
     if
-      M.is_generated(file.path, generated_patterns, git_root, use_gitattributes)
-      or (file.old_path and M.is_generated(file.old_path, generated_patterns, git_root, use_gitattributes))
+      M.is_generated(file.path, generated_patterns, git_root, use_gitattributes, use_header)
+      or (file.old_path and M.is_generated(file.old_path, generated_patterns, git_root, use_gitattributes, use_header))
     then
       file.is_generated = true
       generated[#generated + 1] = file

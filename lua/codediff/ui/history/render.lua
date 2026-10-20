@@ -221,8 +221,9 @@ function M.create(commits, git_root, tabpage, width, opts)
         local ignore_patterns = file_filter.ignore or {}
         local generated_patterns = file_filter.generated or {}
         local use_gitattributes = file_filter.gitattributes_generated ~= false
+        local use_header = file_filter.header_generated ~= false
         files = filter.apply(files, ignore_patterns)
-        local regular_files, generated_files = filter.split_generated(files, generated_patterns, git_root, use_gitattributes)
+        local regular_files, generated_files = filter.split_generated(files, generated_patterns, git_root, use_gitattributes, use_header)
 
         -- Create file nodes based on view_mode
         local history_config = config.options.history or {}

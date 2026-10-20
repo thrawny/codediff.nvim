@@ -72,6 +72,7 @@ M.defaults = {
     file_filter = {
       ignore = { ".git/**", ".jj/**" }, -- Glob patterns to hide (e.g., {"*.lock", "dist/*"})
       gitattributes_generated = true, -- Also collapse files marked linguist-generated in root .gitattributes
+      header_generated = true, -- Also collapse files whose head says "Code generated ... DO NOT EDIT"
       generated = { -- Glob patterns to collapse by default (GitHub PR-style)
         "**/generated/**",
         "**/gen/**",

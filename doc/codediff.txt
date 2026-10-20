@@ -212,6 +212,7 @@ Setup entry point:
       file_filter = {
         ignore = { ".git/**", ".jj/**" },
         gitattributes_generated = true,
+        header_generated = true,
         generated = {
           "**/generated/**",
           "**/gen/**",

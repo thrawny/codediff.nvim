@@ -139,6 +139,7 @@ the checked-out branch.
       file_filter = {
         ignore = { ".git/**", ".jj/**" },  -- Glob patterns to hide (e.g., {"*.lock", "dist/*"})
         gitattributes_generated = true,   -- Collapse files marked linguist-generated in root .gitattributes
+        header_generated = true,          -- Collapse files whose head says "Code generated ... DO NOT EDIT"
         generated = {                     -- Glob patterns to collapse by default
           "**/generated/**",
           "**/gen/**",

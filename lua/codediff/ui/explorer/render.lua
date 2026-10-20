@@ -593,6 +593,7 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
     local file_filter = explorer_config.file_filter or {}
     local generated_patterns = file_filter.generated or {}
     local use_gitattributes = file_filter.gitattributes_generated ~= false
+    local use_header = file_filter.header_generated ~= false
     local fallback_file, fallback_group
     local function pick_first(files, group)
       for _, file in ipairs(files or {}) do
@@ -600,8 +601,8 @@ function M.create(status_result, git_root, tabpage, width, base_revision, target
           fallback_file, fallback_group = file, group
         end
         if
-          not filter.is_generated(file.path, generated_patterns, git_root, use_gitattributes)
-          and not (file.old_path and filter.is_generated(file.old_path, generated_patterns, git_root, use_gitattributes))
+          not filter.is_generated(file.path, generated_patterns, git_root, use_gitattributes, use_header)
+          and not (file.old_path and filter.is_generated(file.old_path, generated_patterns, git_root, use_gitattributes, use_header))
         then
           initial_file, initial_file_group = file, group
           return true
