@@ -1,68 +1,51 @@
-# Agent Instructions
+# codediff.nvim
 
-## General CLI Agent Behavior Instructions
+Jonas's fork of [esmuellert/codediff.nvim](https://github.com/esmuellert/codediff.nvim). The fork has diverged from `upstream` and is developed on its own `main`, pushed to `origin`. The Lua plugin lives in `lua/codediff/`. The diff engine is a Bun sidecar in `engine/`.
 
-> **Commit and push after every change.** Once the change passes its checks, commit it and push the branch without waiting to be asked.
+Jonas's Neovim loads this checkout directly, so a change reaches his editor when he restarts Neovim.
 
-### Communication and File Operation Guidelines
+## Workflow
 
-1. **Output Messages**: When responding to users, utilize the native chat output interface. Do not use command-line utilities such as `cat`, `echo`, or `write-host` to display messages in the console.
+Commit and push to `origin` after every change, once its checks pass.
 
-2. **File Creation and Editing**: Always use native file operation tools (create, edit, patch/diff APIs) for all file operations. Do not use shell redirection operators (`>`, `>>`, `<<`) or command-line utilities (`cat`, `sed`, `awk`, `grep`) to create or modify files. This applies to ALL files, regardless of location (project files, `/tmp`, `%TEMP%`, etc.).
+## Checks
 
-   **Prohibited patterns**:
-   - `cat > /tmp/file.md << 'EOF'`
-   - `echo "content" > file.txt`
-   - `sed -i 's/pattern/replacement/' file.js`
-   
-   **Required approach**: Use native `create` or `str_replace` tools instead.
+- `just test-lua` runs every `tests/**/*_spec.lua` file. The runner finds new spec files by itself.
+- `stylua --check lua` checks Lua formatting. `just fmt` fixes it.
+- `just test` also runs the engine tests. Run it when you touch `engine/`.
 
-3. **Experimental and Demonstration Scripts**: When running experiments, demonstrations, or temporary operations that require script files, create the script files explicitly in temporary directories (`/tmp` on Linux/macOS, `%TEMP%` on Windows) using native file creation tools first, then execute them. Do not use inline heredocs or shell redirection. Do not place code that should have commited and checked-in in `/tmp` folder
+Run one spec file:
 
-   **Example workflow**:
-   - Step 1: Use `create` tool to make `/tmp/experiment.sh`
-   - Step 2: Execute `bash /tmp/experiment.sh`
-   - Step 3: Clean up the file after use
-
-4. **Trailing Spaces**: NEVER add trailing spaces to any line in any file. Always ensure lines end cleanly without whitespace.
-
-5. **Pull Requests**: When asked to create a PR, push the branch as is (do not create a new branch), create PR with comprehensive description (summary, changes, benefits, testing), and enable auto-merge.
-
-## Path-Specific Instructions
-
-Path-specific instructions are defined in `.github/copilot-instructions.md` files within respective directories.
-
-## Debugging Neovim Review/LSP Issues
-
-When investigating codediff/review behavior inside Neovim, reproduce issues in a real Neovim session instead of relying only on static inspection.
-
-### Test Harness Pattern
-
-1. Create temporary Lua harnesses with the file-write tool (not shell heredocs), for example under `/tmp/*.lua`.
-2. If Pi's `interactive_shell` extension is enabled, run Neovim through it (not `bash`) when the run is interactive or TUI-like:
-   - Headless assertion: `nvim --headless -S /tmp/harness.lua`
-   - Visible/manual observation: `nvim -S /tmp/harness.lua`
-3. With `interactive_shell`, use `mode = "hands-free"` so the user can see the overlay and the agent can query/send keys.
-4. If `interactive_shell` is not available, use normal shell commands only for finite headless checks (`nvim --headless -S /tmp/harness.lua`) and ask the user to perform/observe interactive TUI steps manually.
-5. Clean up or let finite sessions exit; do not leave test Neovim sessions running.
-
-### Useful Repro Case
-
-For large Go review/LSP regressions, `~/work/kanel/code/kanel-backend` has a representative last-commit diff:
-
-```vim
-:Review commits HEAD
+```bash
+nvim --headless --noplugin -u tests/init.lua -c "lua require('plenary.busted').run('tests/ui/inline_spec.lua')"
 ```
 
-This opens commit snapshots where both review buffers can be synthetic `nofile` buffers. That differs from `:Review` on uncommitted changes, where the modified side may be a real working-tree file with `gopls` attached.
+The first test run clones plenary.nvim and installs Tree-sitter parsers, so it needs network access.
 
-### What to Inspect
+## Tests
 
-Inside the harness, inspect the codediff session and buffers:
+Add a test case to the existing spec that covers the area. Write tests against the current API, and update an old test rather than keeping a removed API alive for it.
+
+## Reproducing bugs
+
+Reproduce a bug in a real headless Neovim before you fix it, and run the same reproduction again after the fix. Keep scratch scripts outside the repo.
+
+For a scripted user flow, write a scenario and run it with the end-to-end runner:
+
+```bash
+SCENARIO_FILE=/path/to/scenario.lua nvim --headless -u tests/init.lua -c "luafile scripts/nvim-e2e.lua" -c "qa!"
+```
+
+A scenario returns a table with `setup`, `run`, `validate` and `cleanup` functions. `validate` returns `true` when the behaviour is correct. `tests/e2e/` has working scenarios to copy, and `scripts/nvim-e2e.lua` defines the helpers they call, such as temporary git repos, waits and key presses.
+
+## Review mode and LSP
+
+`:Review` on uncommitted changes shows the real working-tree file on the modified side, so language servers attach to it. `:Review commits <rev>` shows commit snapshots, where both sides can be `nofile` buffers with no language server. LSP requests from those buffers go through the real working-tree file, in `lua/codediff/review/lsp_proxy.lua`.
+
+When you debug this, log the session and each buffer:
 
 ```lua
-local lifecycle = require("codediff.ui.lifecycle")
-local sess = lifecycle.get_session(vim.api.nvim_get_current_tabpage())
+local sess = require("codediff.ui.lifecycle").get_session(vim.api.nvim_get_current_tabpage())
 print(vim.inspect({
   original_path = sess.original_path,
   modified_path = sess.modified_path,
@@ -73,23 +56,10 @@ print(vim.inspect({
 }))
 ```
 
-For each relevant buffer, log:
+For each buffer, log `buftype`, `filetype`, `vim.b[buf].codediff_filetype`, the buffer name, `vim.lsp.get_clients({ bufnr = buf })` and the normal-mode buffer keymaps.
 
-- `vim.bo[buf].buftype`
-- `vim.bo[buf].filetype`
-- `vim.b[buf].codediff_filetype`
-- `vim.api.nvim_buf_get_name(buf)`
-- `vim.lsp.get_clients({ bufnr = buf })`
-- buffer-local mappings from `vim.api.nvim_buf_get_keymap(buf, "n")`
+To verify a proxied mapping such as `gr`, put the cursor on a symbol with known references, feed the keys with `vim.api.nvim_feedkeys("gr", "mx", false)`, and check the quickfix entries it produces.
 
-### Validating `gr` / References
+## Docs
 
-Do not only verify that `gr` is mapped. Demonstrate that it works:
-
-1. Position the cursor on a symbol with known references, e.g. `initDatabase` in `cmd/api-v2/main.go` for `kanel-backend`'s last commit.
-2. Feed the actual mapping with `vim.api.nvim_feedkeys("gr", "mx", false)` or send `gr` via `interactive_shell`.
-3. Observe the result, e.g. quickfix/FzfLua entries. A successful run in the kanel repro produced two references for `initDatabase`:
-   - the function declaration
-   - the call `kanelDB := initDatabase(kanelDBConf)`
-
-For synthetic commit-review buffers, `gopls` should not attach directly. Reference lookup may need to proxy through the real working-tree file and then display results via quickfix/FzfLua quickfix.
+`docs/` is user documentation. `docs/development/` is a development log. Add to the existing file for a topic there before you start a new one.
