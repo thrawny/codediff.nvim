@@ -4,6 +4,7 @@ local M = {}
 
 local lifecycle = require("codediff.ui.lifecycle")
 local virtual_file = require("codediff.core.virtual_file")
+local buffer = require("codediff.core.buffer")
 local auto_refresh = require("codediff.ui.auto_refresh")
 local config = require("codediff.config")
 
@@ -620,8 +621,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
           original_info.bufnr = vim.api.nvim_get_current_buf()
         end
       else
-        local bufnr = vim.fn.bufadd(original_info.target)
-        vim.fn.bufload(bufnr)
+        local bufnr = buffer.load(original_info.target)
         original_info.bufnr = bufnr
         vim.api.nvim_win_set_buf(original_win, original_info.bufnr)
       end
@@ -639,8 +639,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
           vim.cmd("edit! " .. vim.fn.fnameescape(original_info.target))
           original_info.bufnr = vim.api.nvim_get_current_buf()
         else
-          local bufnr = vim.fn.bufadd(original_info.target)
-          vim.fn.bufload(bufnr)
+          local bufnr = buffer.load(original_info.target)
           original_info.bufnr = bufnr
           vim.api.nvim_win_set_buf(original_win, original_info.bufnr)
         end
@@ -660,8 +659,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
           modified_info.bufnr = vim.api.nvim_get_current_buf()
         end
       else
-        local bufnr = vim.fn.bufadd(modified_info.target)
-        vim.fn.bufload(bufnr)
+        local bufnr = buffer.load(modified_info.target)
         modified_info.bufnr = bufnr
         vim.api.nvim_win_set_buf(modified_win, modified_info.bufnr)
       end
@@ -679,8 +677,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
           vim.cmd("edit! " .. vim.fn.fnameescape(modified_info.target))
           modified_info.bufnr = vim.api.nvim_get_current_buf()
         else
-          local bufnr = vim.fn.bufadd(modified_info.target)
-          vim.fn.bufload(bufnr)
+          local bufnr = buffer.load(modified_info.target)
           modified_info.bufnr = bufnr
           vim.api.nvim_win_set_buf(modified_win, modified_info.bufnr)
         end
@@ -806,8 +803,7 @@ end
 
 -- Load a real file from disk, return bufnr
 local function load_real_file(file_path)
-  local bufnr = vim.fn.bufadd(file_path)
-  vim.fn.bufload(bufnr)
+  local bufnr = buffer.load(file_path)
   return bufnr
 end
 
@@ -815,8 +811,7 @@ end
 local function load_virtual_file(git_root, revision, file_path)
   local virtual_file_mod = require("codediff.core.virtual_file")
   local url = virtual_file_mod.create_url(git_root, revision, file_path)
-  local bufnr = vim.fn.bufadd(url)
-  vim.fn.bufload(bufnr)
+  local bufnr = buffer.load(url)
   return bufnr
 end
 

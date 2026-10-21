@@ -406,8 +406,7 @@ local function with_real_lsp(session, callback)
     return
   end
 
-  local real_buf = vim.fn.bufadd(real_path)
-  vim.fn.bufload(real_buf)
+  local real_buf = require("codediff.core.buffer").load(real_path)
 
   local attempts = 0
   local function wait_for_lsp()

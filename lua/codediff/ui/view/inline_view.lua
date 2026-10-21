@@ -6,6 +6,7 @@ local lifecycle = require("codediff.ui.lifecycle")
 local auto_refresh = require("codediff.ui.auto_refresh")
 local config = require("codediff.config")
 local diff_module = require("codediff.core.diff")
+local buffer = require("codediff.core.buffer")
 local inline = require("codediff.ui.inline")
 local semantic = require("codediff.ui.semantic_tokens")
 local layout = require("codediff.ui.layout")
@@ -191,8 +192,7 @@ function M.create(session_config, filetype, on_ready)
     vim.bo[orig_buf].buftype = "nofile"
     original_info.bufnr = orig_buf
   elseif original_info.needs_edit then
-    local bufnr = vim.fn.bufadd(original_info.target)
-    vim.fn.bufload(bufnr)
+    local bufnr = buffer.load(original_info.target)
     original_info.bufnr = bufnr
   end
 
@@ -384,8 +384,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
   else
     local modified_info = prepare_buffer(false, session_config.git_root, nil, session_config.modified_path)
     if modified_info.needs_edit then
-      local bufnr = vim.fn.bufadd(modified_info.target)
-      vim.fn.bufload(bufnr)
+      local bufnr = buffer.load(modified_info.target)
       mod_buf = bufnr
     else
       mod_buf = modified_info.bufnr
@@ -474,8 +473,7 @@ function M.update(tabpage, session_config, auto_scroll_to_first_hunk)
   else
     local orig_path = session_config.original_path or session_config.modified_path
     if orig_path and orig_path ~= "" then
-      local real_bufnr = vim.fn.bufadd(orig_path)
-      vim.fn.bufload(real_bufnr)
+      local real_bufnr = buffer.load(orig_path)
       local lines = vim.api.nvim_buf_get_lines(real_bufnr, 0, -1, false)
       vim.bo[orig_buf].modifiable = true
       vim.api.nvim_buf_set_lines(orig_buf, 0, -1, false, lines)
@@ -609,8 +607,7 @@ function M.show_single_file(tabpage, file_path, opts)
     end)
   else
     -- Real file
-    file_bufnr = vim.fn.bufadd(file_path)
-    vim.fn.bufload(file_bufnr)
+    file_bufnr = buffer.load(file_path)
     vim.api.nvim_win_set_buf(mod_win, file_bufnr)
     welcome_window.sync(mod_win)
   end
