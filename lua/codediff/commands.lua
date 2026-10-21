@@ -1,8 +1,8 @@
--- Command implementations for vscode-diff
+-- Command implementations for :CodeDiff
 local M = {}
 
 -- Subcommands available for :CodeDiff
-M.SUBCOMMANDS = { "merge", "file", "dir", "history", "install" }
+M.SUBCOMMANDS = { "merge", "file", "dir", "history" }
 
 local git = require("codediff.core.git")
 local lifecycle = require("codediff.ui.lifecycle")
@@ -517,7 +517,7 @@ local function handle_git_diff_merge_base(base_rev, target_rev, global_opts)
   end)
 end
 
-function M.vscode_merge(opts)
+function M.merge(opts)
   local args = opts.fargs
   if #args == 0 then
     vim.notify("Usage: :CodeDiff merge <filename>", vim.log.levels.ERROR)
@@ -603,7 +603,7 @@ function M.vscode_merge(opts)
   end
 end
 
-function M.vscode_diff(opts)
+function M.run(opts)
   -- Check if current tab is a diff view and toggle (close) it if so
   local current_tab = vim.api.nvim_get_current_tabpage()
   if lifecycle.get_session(current_tab) then
@@ -657,7 +657,7 @@ function M.vscode_diff(opts)
       vim.notify("Usage: :CodeDiff merge <filename>", vim.log.levels.ERROR)
       return
     end
-    M.vscode_merge({ fargs = { args[2] } })
+    M.merge({ fargs = { args[2] } })
   elseif subcommand == "file" then
     if #args == 2 then
       -- Check for triple-dot syntax: :CodeDiff file main...
@@ -769,16 +769,6 @@ function M.vscode_diff(opts)
     end
 
     handle_history(range, file_path, flags, line_range, global_opts)
-  elseif subcommand == "install" or subcommand == "install!" then
-    -- Retained for compatibility now that the engine ships with the plugin.
-    local installer = require("codediff.core.installer")
-    local success, err = installer.install({ silent = true })
-
-    if success then
-      vim.notify("codediff bundled engine is ready", vim.log.levels.INFO)
-    else
-      vim.notify("Engine check failed: " .. (err or "unknown error"), vim.log.levels.ERROR)
-    end
   else
     -- :CodeDiff <revision> [revision2] - opens explorer mode
     -- Check for triple-dot syntax: :CodeDiff main...

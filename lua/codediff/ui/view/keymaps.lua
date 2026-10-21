@@ -619,22 +619,8 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
   end
 
   -- Toggle stage/unstage (- key) - only in explorer mode
-  -- Support legacy config: keymaps.explorer.toggle_stage (deprecated)
-  if is_explorer_mode then
-    local toggle_stage_key = keymaps.toggle_stage
-    local explorer_keymaps = config.options.keymaps.explorer or {}
-
-    -- Fallback to deprecated explorer.toggle_stage if view.toggle_stage not set
-    if not toggle_stage_key and explorer_keymaps.toggle_stage then
-      toggle_stage_key = explorer_keymaps.toggle_stage
-      vim.schedule(function()
-        vim.notify("[codediff] keymaps.explorer.toggle_stage is deprecated. Please use keymaps.view.toggle_stage instead.", vim.log.levels.WARN)
-      end)
-    end
-
-    if toggle_stage_key then
-      lifecycle.set_tab_keymap(tabpage, "n", toggle_stage_key, toggle_stage, { desc = "Toggle stage/unstage" })
-    end
+  if is_explorer_mode and keymaps.toggle_stage then
+    lifecycle.set_tab_keymap(tabpage, "n", keymaps.toggle_stage, toggle_stage, { desc = "Toggle stage/unstage" })
   end
 
   -- Help keymap (g?) - show floating window with available keymaps

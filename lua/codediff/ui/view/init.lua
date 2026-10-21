@@ -72,7 +72,7 @@ function M.toggle_layout(tabpage)
 end
 
 function M.toggle_skeleton(tabpage)
-  return require("codediff.ui.view.skeleton").toggle(tabpage)
+  return require("codediff.ui.view.skeleton").cycle(tabpage)
 end
 
 function M.get_current_layout(tabpage)

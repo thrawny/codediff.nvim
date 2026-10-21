@@ -1,8 +1,8 @@
 # codediff.nvim
 
-[![Downloads](https://img.shields.io/github/downloads/esmuellert/vscode-diff.nvim/total?label=⬇%20downloads&color=blue)](https://github.com/esmuellert/vscode-diff.nvim/releases)
-
 A Neovim plugin that provides VSCode-style diff rendering with two-tier highlighting, supporting both side-by-side and inline (unified) layouts.
+
+This is a personal fork of [esmuellert/codediff.nvim](https://github.com/esmuellert/codediff.nvim). It adds review sessions and the skeleton view, and has diverged from upstream.
 
 <div align="center">
 
@@ -36,7 +36,6 @@ review holds the PR description and the Jira ticket named in the PR title or
 branch. Any other review holds the Jira ticket named in the reviewed revision or
 the checked-out branch.
 
-
 - **Two-tier highlighting system**:
   - Light backgrounds for entire modified lines (green for insertions, red for deletions)
   - Deep/dark character-level highlights showing exact changes within lines
@@ -65,7 +64,7 @@ the checked-out branch.
 **Minimal installation:**
 ```lua
 {
-  "esmuellert/codediff.nvim",
+  "thrawny/codediff.nvim",
   cmd = "CodeDiff",
 }
 ```
@@ -75,7 +74,7 @@ the checked-out branch.
 **With custom configuration:**
 ```lua
 {
-  "esmuellert/codediff.nvim",
+  "thrawny/codediff.nvim",
   cmd = "CodeDiff",
   opts = {
     -- Highlight configuration
@@ -256,7 +255,7 @@ If you prefer to install manually without a plugin manager:
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/esmuellert/codediff.nvim ~/.local/share/nvim/codediff.nvim
+git clone https://github.com/thrawny/codediff.nvim ~/.local/share/nvim/codediff.nvim
 ```
 
 2. **Add to your Neovim runtime path in `init.lua`:**
@@ -659,63 +658,6 @@ just test-engine       # Engine (bun) unit tests only
 just test-lua          # Lua integration tests only
 ```
 
-For more details on the test structure, see [`tests/README.md`](tests/README.md).
-
-### Project Structure
-
-```
-codediff.nvim/
-├── engine/                # Bun/TypeScript diff engine (@pierre/diffs)
-│   └── src/
-│       ├── main.ts        # NDJSON-over-stdio server
-│       └── linesDiff.ts   # LinesDiff computation
-├── lua/
-│   ├── codediff/          # Main Lua modules
-│   │   ├── init.lua       # Main API
-│   │   ├── config.lua     # Configuration
-│   │   ├── commands.lua   # Command handlers
-│   │   ├── core/
-│   │   │   ├── diff.lua       # Engine client
-│   │   │   ├── git.lua        # Git operations
-│   │   │   └── installer.lua  # Engine bootstrap
-│   │   └── ui/            # UI components
-│   │       ├── core.lua       # Diff rendering
-│   │       ├── highlights.lua # Highlight setup
-│   │       ├── view/          # View management
-│   │       ├── explorer/      # Git status explorer
-│   │       ├── history/       # Commit history panel
-│   │       ├── lifecycle/     # Lifecycle management
-│   │       └── conflict/      # Conflict resolution
-│   └── vscode-diff/       # Backward compatibility shims
-├── plugin/                # Plugin entry point
-│   └── codediff.lua       # Auto-loaded on startup
-├── tests/                 # Test suite (plenary.nvim)
-├── docs/                  # Documentation and development history
-├── Justfile               # Task runner recipes
-└── README.md
-```
-
-## Roadmap
-
-### Current Status: Complete ✅
-
-- [x] Pierre-based diff computation in a Bun sidecar (same diff core as Hunk)
-- [x] Two-tier highlighting (line + character level)
-- [x] Side-by-side view with synchronized scrolling
-- [x] Git integration (async operations, status explorer, revision comparison)
-- [x] Auto-refresh on buffer changes (live diff updates)
-- [x] Syntax highlighting preservation (LSP semantic tokens + TreeSitter)
-- [x] Read-only buffers with virtual filler lines for alignment
-- [x] Flexible highlight configuration (colorscheme-aware)
-- [x] Integration tests (engine + Lua with plenary.nvim)
-- [x] File history mode (per-commit review, similar to DiffviewFileHistory)
-
-### Future Enhancements
-
-- [x] Inline diff mode (single buffer view)
-- [x] Moved code detection (VSCode parity)
-- [ ] Fold support for large diffs
-
 ## VSCode Reference
 
 This plugin follows VSCode's diff rendering architecture:
@@ -727,11 +669,3 @@ This plugin follows VSCode's diff rendering architecture:
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-1. Engine tests pass (`just test-engine`)
-2. Lua tests pass (`just test-lua`)
-3. Code follows existing style
-4. Updates to README if adding features

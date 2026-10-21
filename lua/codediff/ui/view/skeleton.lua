@@ -843,7 +843,4 @@ function M.cycle(tabpage)
   end
 end
 
--- Backward-compatible alias: the keymap cycles through all modes.
-M.toggle = M.cycle
-
 return M

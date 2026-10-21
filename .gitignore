@@ -1,11 +1,6 @@
 # Engine dependencies
 node_modules/
 
-# Generated VSCode merge bundle (can be regenerated with ./scripts/build-vscode-merge.sh)
-vscode-merge.mjs
-example
-example/
-
 # Neovim
 *.swp
 *.swo

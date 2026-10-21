@@ -6,12 +6,12 @@ local commands = require("codediff.commands")
 -- Setup CodeDiff command for tests
 local function setup_command()
   vim.api.nvim_create_user_command("CodeDiff", function(opts)
-    commands.vscode_diff(opts)
+    commands.run(opts)
   end, {
     nargs = "*",
     bang = true,
     complete = function()
-      return { "file", "install" }
+      return { "file" }
     end,
   })
 end

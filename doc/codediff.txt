@@ -20,11 +20,6 @@ COMMANDS                                                  *codediff-commands*
 :CodeDiff [args]
     Open the CodeDiff UI. See |codediff-usage| for available modes.
 
-:CodeDiff install
-:CodeDiff install!
-    Check that Bun and the bundled diff engine are available. Retained for
-    compatibility; the engine requires no installation step.
-
 ==============================================================================
 USAGE                                                       *codediff-usage*
 

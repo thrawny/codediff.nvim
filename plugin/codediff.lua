@@ -136,11 +136,11 @@ local function complete_codediff(arg_lead, cmd_line, _)
 end
 
 vim.api.nvim_create_user_command("CodeDiff", function(opts)
-  require("codediff.commands").vscode_diff(opts)
+  require("codediff.commands").run(opts)
 end, {
   nargs = "*",
   bang = true,
   range = true,
   complete = complete_codediff,
-  desc = "VSCode-style diff view: :CodeDiff [<revision>] | merge <file> | file <revision> | install"
+  desc = "VSCode-style diff view: :CodeDiff [<revision>] | merge <file> | file <revision>"
 })

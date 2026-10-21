@@ -200,11 +200,6 @@ function Tree:remove_node(node_id)
   self:_unregister_node(node)
 end
 
---- Compatibility stub (nui-specific, not needed for our implementation)
-function Tree:set_node(_id)
-  -- no-op
-end
-
 --- Get node by various lookups:
 --- - nil: node at cursor position in current window
 --- - number: node at that line number

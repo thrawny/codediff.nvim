@@ -62,4 +62,4 @@ To verify a proxied mapping such as `gr`, put the cursor on a symbol with known 
 
 ## Docs
 
-`docs/` is user documentation. `docs/development/` is a development log. Add to the existing file for a topic there before you start a new one.
+`README.md` and `doc/codediff.txt` are the user docs. Update both when you add or change a command, keymap or option. `docs/review-sidecar-architecture.md` is the design of review mode's LSP sidecar.

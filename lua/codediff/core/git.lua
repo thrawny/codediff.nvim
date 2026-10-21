@@ -1,4 +1,4 @@
--- Git operations module for vscode-diff
+-- Git operations module for codediff
 -- All operations are async and atomic
 local M = {}
 

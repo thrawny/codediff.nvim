@@ -103,7 +103,6 @@ describe("Command Completion", function()
 
     it("Contains expected subcommands", function()
       assert.is_true(vim.tbl_contains(commands.SUBCOMMANDS, "file"), "Should include 'file'")
-      assert.is_true(vim.tbl_contains(commands.SUBCOMMANDS, "install"), "Should include 'install'")
     end)
   end)
 

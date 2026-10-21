@@ -8,12 +8,12 @@ local h = dofile("tests/helpers.lua")
 local function setup_command()
   local commands = require("codediff.commands")
   vim.api.nvim_create_user_command("CodeDiff", function(opts)
-    commands.vscode_diff(opts)
+    commands.run(opts)
   end, {
     nargs = "*",
     bang = true,
     complete = function()
-      return { "file", "install" }
+      return { "file" }
     end,
   })
 end
@@ -501,17 +501,4 @@ describe("Explorer Mode", function()
     assert.is_true(notified, "Should notify for non-git directory")
   end)
 
-  -- Test 10: Commands.lua simplicity (no callbacks in commands)
-  it("Commands.lua follows simple pattern", function()
-    -- This is a design validation test
-    -- Verify commands.lua doesn't contain on_file_select
-    local commands_path = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h:h") .. "/lua/vscode-diff/commands.lua"
-
-    if vim.fn.filereadable(commands_path) == 1 then
-      local content = table.concat(vim.fn.readfile(commands_path), "\n")
-      -- Should NOT define on_file_select in commands.lua
-      local has_callback_def = content:match("local%s+function%s+on_file_select")
-      assert.is_nil(has_callback_def, "Commands.lua should not define on_file_select callback")
-    end
-  end)
 end)

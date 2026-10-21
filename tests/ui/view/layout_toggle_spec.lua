@@ -13,12 +13,12 @@ local function setup_command()
   pcall(vim.api.nvim_del_user_command, "CodeDiff")
   local commands = require("codediff.commands")
   vim.api.nvim_create_user_command("CodeDiff", function(opts)
-    commands.vscode_diff(opts)
+    commands.run(opts)
   end, {
     nargs = "*",
     bang = true,
     complete = function()
-      return { "file", "install" }
+      return { "file" }
     end,
   })
 end

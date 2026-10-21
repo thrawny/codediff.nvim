@@ -1,4 +1,4 @@
--- Test helpers for vscode-diff tests
+-- Test helpers for codediff tests
 -- Provides cross-platform utilities and common test patterns
 
 local M = {}

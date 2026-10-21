@@ -29,7 +29,7 @@ This project includes code from or is derived from the following open source pro
 **License**: Apache License 2.0  
 **Copyright**: Copyright Neovim contributors  
 **Source**: https://github.com/neovim/neovim  
-**Location**: `lua/vscode-diff/render/semantic_tokens.lua` (lines 38-117)  
+**Location**: `lua/codediff/ui/semantic_tokens.lua` (lines 38-117)  
 **Description**: Two helper functions from Neovim's LSP semantic tokens implementation are vendored because there is no public API to process semantic token responses for arbitrary buffers.
 
 **Functions Vendored**:

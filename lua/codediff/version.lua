@@ -2,7 +2,7 @@
 local M = {}
 
 -- Load VERSION once at module load time
--- Navigate from lua/vscode-diff/version.lua -> lua/vscode-diff/ -> lua/ -> plugin root
+-- Navigate from lua/codediff/version.lua up to the plugin root
 do
   local source = debug.getinfo(1).source:sub(2)
   local plugin_root = vim.fn.fnamemodify(source, ":h:h:h")

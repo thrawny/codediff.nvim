@@ -43,24 +43,6 @@ typecheck:
 # Format, lint, typecheck, and test
 check: fmt lint typecheck test
 
-# === Versioning ===
-
-# Bump patch version (bug fixes)
-bump-patch:
-    node scripts/bump_version.mjs patch
-
-# Bump minor version (new features)
-bump-minor:
-    node scripts/bump_version.mjs minor
-
-# Bump major version (breaking changes)
-bump-major:
-    node scripts/bump_version.mjs major
-
-# Bump prerelease version
-bump-prerelease:
-    node scripts/bump_version.mjs prerelease
-
 # Remove development dependencies
 clean:
     rm -rf engine/node_modules

@@ -8,12 +8,12 @@ local virtual_file = require("codediff.core.virtual_file")
 local function setup_command()
   if vim.fn.exists(':CodeDiff') ~= 2 then
     vim.api.nvim_create_user_command("CodeDiff", function(opts)
-      commands.vscode_diff(opts)
+      commands.run(opts)
     end, {
       nargs = "*",
       bang = true,
       complete = function()
-        return { "file", "install" }
+        return { "file" }
       end,
     })
   end
