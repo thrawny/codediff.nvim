@@ -2,7 +2,7 @@
 
 ## General CLI Agent Behavior Instructions
 
-> ⚠️ **CRITICAL: NEVER commit code unless the user explicitly requests it.** After completing changes, STOP and wait for user to say "commit". Each commit request authorizes only ONE commit operation.
+> **Commit and push after every change.** Once the change passes its checks, commit it and push the branch without waiting to be asked.
 
 ### Communication and File Operation Guidelines
 
