@@ -3,8 +3,7 @@ codediff.nvim                                 *codediff.txt* *codediff.nvim* *co
 CodeDiff provides VSCode-style diff rendering with two-tier highlighting,
 supporting both side-by-side and inline (unified) layouts.
 
-This help file is usage-focused. For installation, build, and development
-details, see README.md.
+README.md covers installation. This file covers the commands and options.
 
 ==============================================================================
 QUICK START                                           *codediff-quickstart*
@@ -20,6 +19,9 @@ COMMANDS                                                  *codediff-commands*
 :CodeDiff [args]
     Open the CodeDiff UI. See |codediff-usage| for available modes.
 
+:CodeReview [subcommand] (also :Review)
+    Open a read-only review session. See |codediff-review|.
+
 ==============================================================================
 USAGE                                                       *codediff-usage*
 
@@ -31,6 +33,15 @@ File explorer mode (git status by default):
   :CodeDiff abc123
   :CodeDiff main HEAD
 <
+
+Merge-base diff, the changes a pull request would show:
+>vim
+  :CodeDiff main...            " merge-base(main, HEAD) vs working tree
+  :CodeDiff main...HEAD        " merge-base(main, HEAD) vs HEAD
+  :CodeDiff develop...feature  " merge-base between two branches
+<
+This matches `git diff main...HEAD`. Commits that landed on the base branch
+after you branched do not show up.
 
 Git diff mode (current buffer vs revision):
 >vim
@@ -64,8 +75,8 @@ Directory comparison mode:
   :CodeDiff dir /path/to/dir1 /path/to/dir2
 <
 
-Shows files as Added (A), Deleted (D), or Modified (M) based on file size and
-modification time. Select a file to view its diff.
+Shows files as Added (A), Deleted (D), or Modified (M). A file counts as
+modified when its size or its bytes differ. Select a file to view its diff.
 
 File history mode:                                    *codediff-history*
 >vim
@@ -106,6 +117,66 @@ Git merge tool:
   git config --global merge.tool codediff
   git config --global mergetool.codediff.cmd 'nvim "$MERGED" -c "CodeDiff merge \"$MERGED\""'
 <
+
+Git diff tool:
+>sh
+  git config --global diff.tool codediff
+  git config --global difftool.codediff.cmd 'nvim "$LOCAL" "$REMOTE" +"CodeDiff file $LOCAL $REMOTE"'
+<
+Then run `git difftool`, `git difftool HEAD~2 HEAD` or `git difftool -y`.
+
+==============================================================================
+REVIEW SESSIONS                                             *codediff-review*
+
+`:CodeReview` (also `:Review`) opens a read-only diff with the file explorer.
+Go-to-definition and references work from both sides of the diff, including
+old revisions, because requests go through the working-tree file.
+
+  :CodeReview, :CodeReview open
+      Review uncommitted changes.
+  :CodeReview commits REV [REV2]
+      Review one revision, or the range from REV to REV2. Without REV, pick
+      the commits from a list.
+  :CodeReview branch [BASE]
+      Review the current branch and its uncommitted changes since it left
+      BASE. Without BASE, the base is the base branch of the branch's open
+      PR, so a stacked PR is reviewed against its parent branch. If the
+      branch has no PR, the base is the remote's default branch.
+  :CodeReview pr [NUMBER]
+      Review a GitHub PR. Without NUMBER, pick an open PR from a list.
+  :CodeReview toggle
+      Switch between read-only and edit mode.
+  :CodeReview close
+      Close the session.
+
+A review shows a Context group above Changes when it has something to show.
+A PR review shows the PR description and the Jira ticket named in the PR
+title or branch. Other reviews show the Jira ticket named in the reviewed
+revision or the checked-out branch.
+
+`pr` and `branch` call the `gh` CLI. Configure review sessions with
+`require("codediff.review").setup({...})`. `lua/codediff/review/config.lua`
+lists the options and their defaults.
+
+==============================================================================
+SKELETON VIEW                                             *codediff-skeleton*
+
+Press `s` in a diff view to cycle the skeleton view through four states:
+
+  off             The normal diff.
+  seams only      Folds function bodies. Signatures and declarations stay
+                  visible.
+  focused seams   Hides implementation and import changes. Shows changed
+                  signatures and top-level declarations. Changed structs,
+                  interfaces, enums and type declarations show in full.
+                  Added files have no original version, so they use seams
+                  only.
+  current file    The file as it is now, in one pane, without diff markup.
+                  From side-by-side, this switches to the inline layout and
+                  back when you cycle on.
+
+Files without a Tree-sitter parser skip the two seam states. The skeleton
+view works in both layouts and stays on when you switch files.
 
 ==============================================================================
 CONFIGURATION                                        *codediff-configuration*
@@ -406,7 +477,8 @@ Example: Hide tabline while CodeDiff is open:
 ==============================================================================
 SEE ALSO                                                *codediff-see-also*
 
-README.md for full installation, build, and development details.
+README.md for installation. `lua/codediff/config.lua` for every option and
+its default.
 
 ==============================================================================
 vim:tw=78:ft=help:norl:
