@@ -476,6 +476,36 @@ describe("codediff.review foundation", function()
     vim.api.nvim_del_augroup_by_id(group)
   end)
 
+  it("keeps the filetype probe buffer alive for scheduled FileType callbacks", function()
+    repo.git("restore file1.txt")
+    repo.write_file("doc/help.txt", { "*help.txt*", "", "vim:tw=78:ft=help:norl:" })
+    repo.git("add doc/help.txt")
+    repo.git('commit -m "add help"')
+    repo.write_file("doc/help.txt", { "*help.txt* changed", "", "vim:tw=78:ft=help:norl:" })
+
+    -- Mirrors LazyVim's close_with_q autocmd, which maps q on the buffer later.
+    local errors = {}
+    local group = vim.api.nvim_create_augroup("codediff_review_test_scheduled_filetype", { clear = true })
+    vim.api.nvim_create_autocmd("FileType", {
+      group = group,
+      pattern = "help",
+      callback = function(event)
+        vim.schedule(function()
+          local ok, err = pcall(vim.keymap.set, "n", "q", "<cmd>close<cr>", { buffer = event.buf })
+          if not ok then
+            table.insert(errors, err)
+          end
+        end)
+      end,
+    })
+
+    open_review(repo, "doc/help.txt")
+    vim.wait(200)
+    vim.api.nvim_del_augroup_by_id(group)
+
+    assert.same({}, errors)
+  end)
+
   it("supports no-op close outside review sessions", function()
     local review = require("codediff.review")
     assert.is_false(review.close({ noop_if_inactive = true, preview = false }))

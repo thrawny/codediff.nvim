@@ -10,6 +10,33 @@ local review_buffer_options = {}
 local review_window_buffers = {}
 
 local wrap_options = { "wrap", "linebreak", "breakindent", "showbreak", "breakindentopt" }
+---@type table<string, table<string, any>>
+local filetype_wrap_values = {}
+
+-- vim.filetype.get_option() runs FileType autocmds in a scratch buffer and
+-- deletes it at once, so an autocmd that schedules work on that buffer, such
+-- as LazyVim's close-with-q keymap, fails with "Invalid buffer id". Read the
+-- options from our own scratch buffer and delete it after those callbacks run.
+local function get_filetype_wrap_values(ft)
+  if filetype_wrap_values[ft] then
+    return filetype_wrap_values[ft]
+  end
+
+  local values = {}
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_call(buf, function()
+    pcall(vim.api.nvim_set_option_value, "filetype", ft, { buf = buf })
+    for _, option in ipairs(wrap_options) do
+      values[option] = vim.api.nvim_get_option_value(option, {})
+    end
+  end)
+  vim.schedule(function()
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end)
+
+  filetype_wrap_values[ft] = values
+  return values
+end
 
 local function save_review_buffer_options(bufnr)
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or review_buffer_options[bufnr] then
@@ -90,12 +117,10 @@ local function inherit_filetype_wrap_options(bufnr, win)
   -- diff.wrap is an explicit opt-in, so a filetype default must not turn it off.
   local wrap_forced = require("codediff.config").options.diff.wrap
 
+  local values = get_filetype_wrap_values(ft)
   for _, option in ipairs(wrap_options) do
-    if not (wrap_forced and option == "wrap") then
-      local ok, value = pcall(vim.filetype.get_option, ft, option)
-      if ok and value ~= nil then
-        pcall(vim.api.nvim_set_option_value, option, value, { win = win })
-      end
+    if not (wrap_forced and option == "wrap") and values[option] ~= nil then
+      pcall(vim.api.nvim_set_option_value, option, values[option], { win = win })
     end
   end
 end
