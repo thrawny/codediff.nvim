@@ -8,7 +8,7 @@ vim.g.loaded_codediff = 1
 
 -- Lightweight startup: highlights (~0.3ms) + virtual file scheme (~0.1ms)
 local highlights = require("codediff.ui.highlights")
-local virtual_file = require('codediff.core.virtual_file')
+local virtual_file = require("codediff.core.virtual_file")
 
 virtual_file.setup()
 highlights.setup()
@@ -26,15 +26,13 @@ local rev_cache = {
   candidates = nil,
   git_root = nil,
   timestamp = 0,
-  ttl = 5,  -- Cache for 5 seconds
+  ttl = 5, -- Cache for 5 seconds
 }
 
 local function get_cached_rev_candidates(git_root)
-  local git = require('codediff.core.git')
-  local now = vim.loop.now() / 1000  -- Convert to seconds
-  if rev_cache.candidates
-      and rev_cache.git_root == git_root
-      and (now - rev_cache.timestamp) < rev_cache.ttl then
+  local git = require("codediff.core.git")
+  local now = vim.loop.now() / 1000 -- Convert to seconds
+  if rev_cache.candidates and rev_cache.git_root == git_root and (now - rev_cache.timestamp) < rev_cache.ttl then
     return rev_cache.candidates
   end
 
@@ -61,7 +59,7 @@ end
 
 -- Register user command with subcommand completion
 local function complete_codediff(arg_lead, cmd_line, _)
-  local git = require('codediff.core.git')
+  local git = require("codediff.core.git")
   local commands = require("codediff.commands")
   local args = vim.split(cmd_line, "%s+", { trimempty = true })
 
@@ -87,12 +85,16 @@ local function complete_codediff(arg_lead, cmd_line, _)
   if arg_lead:match("^%-") then
     if first_arg == "history" then
       local result = complete_flags({ "--reverse", "-r", "--base", "-b", "--inline", "--side-by-side" }, arg_lead)
-      if result then return result end
+      if result then
+        return result
+      end
     end
 
     -- Layout flags available for all subcommands
     local result = complete_flags({ "--inline", "--side-by-side" }, arg_lead)
-    if result then return result end
+    if result then
+      return result
+    end
   end
 
   -- For revision arguments, suggest git refs filtered by arg_lead
@@ -142,5 +144,5 @@ end, {
   bang = true,
   range = true,
   complete = complete_codediff,
-  desc = "VSCode-style diff view: :CodeDiff [<revision>] | merge <file> | file <revision>"
+  desc = "VSCode-style diff view: :CodeDiff [<revision>] | merge <file> | file <revision>",
 })

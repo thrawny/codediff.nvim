@@ -194,8 +194,7 @@ describe("Inline diff with history-like configurations", function()
     local _, mod_buf = lifecycle.get_buffers(tabpage)
     assert.is_true(vim.api.nvim_buf_is_valid(mod_buf), "Modified buffer should be valid")
     local buf_lines = vim.api.nvim_buf_get_lines(mod_buf, 0, -1, false)
-    assert.are.same({ "single file content", "second line" }, buf_lines,
-      "Modified buffer should contain single file content")
+    assert.are.same({ "single file content", "second line" }, buf_lines, "Modified buffer should contain single file content")
 
     -- Inline extmarks should be cleared (no diff decorations for single file)
     local marks = vim.api.nvim_buf_get_extmarks(mod_buf, inline.ns_inline, 0, -1, {})

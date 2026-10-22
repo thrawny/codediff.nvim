@@ -3,12 +3,12 @@
 return {
   setup = function(ctx, e2e)
     ctx.repo = e2e.create_temp_git_repo()
-    ctx.repo.write_file("file1.txt", {"line 1", "line 2"})
-    ctx.repo.write_file("file2.txt", {"hello"})
+    ctx.repo.write_file("file1.txt", { "line 1", "line 2" })
+    ctx.repo.write_file("file2.txt", { "hello" })
     ctx.repo.git("add .")
     ctx.repo.git("commit -m 'initial'")
-    ctx.repo.write_file("file1.txt", {"line 1", "line 2 modified"})
-    ctx.repo.write_file("file2.txt", {"hello world"})
+    ctx.repo.write_file("file1.txt", { "line 1", "line 2 modified" })
+    ctx.repo.write_file("file2.txt", { "hello world" })
     vim.cmd("edit " .. ctx.repo.path("file1.txt"))
   end,
 
@@ -27,7 +27,9 @@ return {
 
     -- Must have explorer window
     ok = ok and e2e.assert_true(ctx.explorer_win ~= nil, "Explorer window should exist")
-    if not ctx.explorer_win then return false end
+    if not ctx.explorer_win then
+      return false
+    end
 
     -- Must have 3 windows (explorer + 2 diff panes)
     ok = ok and e2e.assert_true(#ctx.windows >= 3, "Should have at least 3 windows, got " .. #ctx.windows)
@@ -52,6 +54,8 @@ return {
   end,
 
   cleanup = function(ctx, e2e)
-    if ctx.repo then ctx.repo.cleanup() end
-  end
+    if ctx.repo then
+      ctx.repo.cleanup()
+    end
+  end,
 }

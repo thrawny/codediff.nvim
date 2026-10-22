@@ -341,10 +341,7 @@ describe("Layout toggle", function()
     assert.is_true(view.toggle_layout(tabpage))
     local inline_ready = vim.wait(5000, function()
       local session = lifecycle.get_session(tabpage)
-      return session
-        and session.layout == "inline"
-        and session.original_win == session.modified_win
-        and session.modified_path == file_path
+      return session and session.layout == "inline" and session.original_win == session.modified_win and session.modified_path == file_path
     end, 50)
     assert.is_true(inline_ready, "Untracked preview should toggle into inline layout")
 
@@ -427,10 +424,7 @@ describe("Layout toggle", function()
     assert.is_true(view.toggle_layout(tabpage))
     local inline_welcome = vim.wait(5000, function()
       local session = lifecycle.get_session(tabpage)
-      return session
-        and session.layout == "inline"
-        and session.original_win == session.modified_win
-        and welcome.is_welcome_buffer(session.modified_bufnr)
+      return session and session.layout == "inline" and session.original_win == session.modified_win and welcome.is_welcome_buffer(session.modified_bufnr)
     end, 50)
     assert.is_true(inline_welcome, "Welcome page should toggle into inline layout")
 
@@ -705,7 +699,9 @@ describe("Layout toggle", function()
     stage_cb()
 
     -- Spin to let the full async chain complete (git apply → callback → refresh → status → render)
-    vim.wait(10000, function() return false end, 50)
+    vim.wait(10000, function()
+      return false
+    end, 50)
 
     local s = lifecycle.get_session(tabpage)
     assert.is_true(s and s.layout == "inline" and s.modified_revision == ":0", "Staging a hunk should still work after toggle")
@@ -731,7 +727,9 @@ describe("Layout toggle", function()
     unstage_cb()
 
     -- Spin to let the full async chain complete
-    vim.wait(10000, function() return false end, 50)
+    vim.wait(10000, function()
+      return false
+    end, 50)
 
     local s = lifecycle.get_session(tabpage)
     assert.is_true(s and s.modified_revision == nil, "Unstaging a hunk should still work after toggling back")
@@ -791,7 +789,9 @@ describe("Layout toggle", function()
     assert.is_function(discard_cb, "discard_hunk mapping should exist after toggle")
     discard_cb()
 
-    vim.wait(10000, function() return false end, 50)
+    vim.wait(10000, function()
+      return false
+    end, 50)
 
     vim.ui.select = old_select
 

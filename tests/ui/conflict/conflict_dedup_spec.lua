@@ -32,16 +32,12 @@ describe("Conflict dedup in on_file_select", function()
     local file_path = "file.txt"
     local abs_path = "/tmp/test/file.txt"
 
-    local is_same_file = (mock_session.modified_path == abs_path
-      or mock_session.modified_path == file_path
-      or (mock_session.git_root and mock_session.original_path == file_path))
+    local is_same_file = (mock_session.modified_path == abs_path or mock_session.modified_path == file_path or (mock_session.git_root and mock_session.original_path == file_path))
 
     assert.is_true(is_same_file, "Should detect same conflict file")
 
     -- The fix: conflict-specific early return
-    local should_skip = (group == "conflicts"
-      and mock_session.result_win
-      and vim.api.nvim_win_is_valid(mock_session.result_win))
+    local should_skip = (group == "conflicts" and mock_session.result_win and vim.api.nvim_win_is_valid(mock_session.result_win))
 
     assert.is_true(should_skip, "Should skip update for same conflict file with active result_win")
   end)
@@ -57,9 +53,7 @@ describe("Conflict dedup in on_file_select", function()
     }
 
     local group = "conflicts"
-    local should_skip = (group == "conflicts"
-      and mock_session.result_win
-      and vim.api.nvim_win_is_valid(mock_session.result_win))
+    local should_skip = (group == "conflicts" and mock_session.result_win and vim.api.nvim_win_is_valid(mock_session.result_win))
 
     assert.is_falsy(should_skip, "Should NOT skip when result_win is nil")
   end)
@@ -77,9 +71,7 @@ describe("Conflict dedup in on_file_select", function()
     }
 
     local group = "staged"
-    local should_skip = (group == "conflicts"
-      and mock_session.result_win
-      and vim.api.nvim_win_is_valid(mock_session.result_win))
+    local should_skip = (group == "conflicts" and mock_session.result_win and vim.api.nvim_win_is_valid(mock_session.result_win))
 
     assert.is_false(should_skip, "Should NOT skip for staged group")
   end)
@@ -88,22 +80,19 @@ describe("Conflict dedup in on_file_select", function()
     -- This is the original buggy check that caused flickering
     -- Conflict revisions :2/:3 match ^:[0-3]$ causing false positive
     local mock_session = {
-      original_revision = ":3",  -- conflict THEIRS revision
+      original_revision = ":3", -- conflict THEIRS revision
     }
 
-    local current_is_mutable = mock_session.original_revision
-      and mock_session.original_revision:match("^:[0-3]$")
+    local current_is_mutable = mock_session.original_revision and mock_session.original_revision:match("^:[0-3]$")
 
-    assert.is_truthy(current_is_mutable,
-      "Conflict revision :3 matches mutable pattern (the root cause of the bug)")
+    assert.is_truthy(current_is_mutable, "Conflict revision :3 matches mutable pattern (the root cause of the bug)")
 
     -- And conflict files are NOT in staged list
-    local file_has_staged = false  -- conflict files aren't in status_result.staged
+    local file_has_staged = false -- conflict files aren't in status_result.staged
 
     -- This evaluates to true, meaning "comparison base needs to change" (WRONG for conflicts)
     local would_skip = not (file_has_staged ~= (current_is_mutable and true or false))
 
-    assert.is_false(would_skip,
-      "Original check incorrectly thinks comparison base needs to change for conflict files")
+    assert.is_false(would_skip, "Original check incorrectly thinks comparison base needs to change for conflict files")
   end)
 end)

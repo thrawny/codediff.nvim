@@ -7,13 +7,13 @@ local M = {}
 -- This is needed because PlenaryBustedFile spawns a subprocess that may not have loaded our plugin
 function M.ensure_plugin_loaded()
   if not vim.g.loaded_codediff then
-    local plugin_file = vim.fn.getcwd() .. '/plugin/codediff.lua'
+    local plugin_file = vim.fn.getcwd() .. "/plugin/codediff.lua"
     if vim.fn.filereadable(plugin_file) == 1 then
       dofile(plugin_file)
     end
   end
   -- Also ensure virtual_file autocmds are set up (plenary may clear them between tests)
-  local virtual_file = require('codediff.core.virtual_file')
+  local virtual_file = require("codediff.core.virtual_file")
   virtual_file.setup()
 end
 
@@ -58,7 +58,7 @@ function M.git_cmd(dir, args)
   else
     safe_dir = vim.fn.shellescape(dir)
   end
-  local cmd = string.format('git -C %s %s', safe_dir, args)
+  local cmd = string.format("git -C %s %s", safe_dir, args)
   local output = vim.fn.system(cmd)
   local exit_code = vim.v.shell_error
   return output, exit_code
@@ -68,24 +68,24 @@ end
 -- Returns: { dir = path, cleanup = function }
 function M.create_temp_git_repo()
   local temp_dir = M.create_temp_dir()
-  
+
   M.git_cmd(temp_dir, "init")
   M.git_cmd(temp_dir, "config user.email 'test@test.com'")
   M.git_cmd(temp_dir, "config user.name 'Test'")
   -- Set default branch name to avoid warnings
   M.git_cmd(temp_dir, "branch -m main")
-  
+
   -- Get the canonical path from git to match what get_git_root() returns
   -- On Windows: avoids 8.3 short name vs long name mismatches
   -- On macOS: avoids /var vs /private/var symlink issues
   local output = M.git_cmd(temp_dir, "rev-parse --show-toplevel")
   if output then
     local canonical = vim.trim(output)
-    if canonical and canonical ~= '' then
+    if canonical and canonical ~= "" then
       temp_dir = canonical
     end
   end
-  
+
   return {
     dir = temp_dir,
     -- Helper to run git in this repo
@@ -108,7 +108,7 @@ function M.create_temp_git_repo()
     -- Cleanup function
     cleanup = function()
       vim.fn.delete(temp_dir, "rf")
-    end
+    end,
   }
 end
 
@@ -121,7 +121,7 @@ end
 function M.wait_async(timeout_ms, condition_fn, interval_ms)
   timeout_ms = timeout_ms or 5000
   interval_ms = interval_ms or 50
-  
+
   if condition_fn then
     return vim.wait(timeout_ms, condition_fn, interval_ms)
   else
@@ -138,16 +138,22 @@ end
 -- @return boolean: true if session is ready
 function M.wait_for_session_ready(tabpage, timeout_ms)
   timeout_ms = timeout_ms or 10000
-  local lifecycle = require('codediff.ui.lifecycle')
-  
+  local lifecycle = require("codediff.ui.lifecycle")
+
   return vim.wait(timeout_ms, function()
     local session = lifecycle.get_session(tabpage)
-    if not session then return false end
-    if not session.stored_diff_result then return false end
-    
+    if not session then
+      return false
+    end
+    if not session.stored_diff_result then
+      return false
+    end
+
     local orig_buf, mod_buf = lifecycle.get_buffers(tabpage)
-    if not orig_buf or not mod_buf then return false end
-    
+    if not orig_buf or not mod_buf then
+      return false
+    end
+
     return vim.api.nvim_buf_is_valid(orig_buf) and vim.api.nvim_buf_is_valid(mod_buf)
   end, 100)
 end
@@ -160,19 +166,21 @@ end
 function M.wait_for_virtual_file_load(bufnr, timeout_ms)
   timeout_ms = timeout_ms or 5000
   local loaded = false
-  
-  local group = vim.api.nvim_create_augroup('TestWaitVirtualFile', { clear = true })
-  vim.api.nvim_create_autocmd('User', {
+
+  local group = vim.api.nvim_create_augroup("TestWaitVirtualFile", { clear = true })
+  vim.api.nvim_create_autocmd("User", {
     group = group,
-    pattern = 'CodeDiffVirtualFileLoaded',
+    pattern = "CodeDiffVirtualFileLoaded",
     callback = function(event)
       if event.data and event.data.buf == bufnr then
         loaded = true
       end
     end,
   })
-  
-  local ok = vim.wait(timeout_ms, function() return loaded end, 50)
+
+  local ok = vim.wait(timeout_ms, function()
+    return loaded
+  end, 50)
   pcall(vim.api.nvim_del_augroup_by_id, group)
   return ok
 end
@@ -189,7 +197,7 @@ function M.wait_for_buffer_content(bufnr, expected, timeout_ms)
       return false
     end
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    local content = table.concat(lines, '\n')
+    local content = table.concat(lines, "\n")
     return content:find(expected, 1, true) ~= nil
   end, 50)
 end
@@ -213,20 +221,22 @@ end
 
 -- Normalize a path for comparison (forward slashes, no trailing slash)
 function M.normalize_path(path)
-  if not path then return nil end
+  if not path then
+    return nil
+  end
   -- Convert to absolute
-  path = vim.fn.fnamemodify(path, ':p')
+  path = vim.fn.fnamemodify(path, ":p")
   -- Remove trailing slashes
-  path = path:gsub('[/\\]$', '')
+  path = path:gsub("[/\\]$", "")
   -- Normalize to forward slashes
-  path = path:gsub('\\', '/')
+  path = path:gsub("\\", "/")
   return path
 end
 
 -- Close all tabs except the first one (cleanup helper)
 function M.close_extra_tabs()
-  while vim.fn.tabpagenr('$') > 1 do
-    vim.cmd('tabclose')
+  while vim.fn.tabpagenr("$") > 1 do
+    vim.cmd("tabclose")
   end
 end
 

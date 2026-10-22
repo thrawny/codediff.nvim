@@ -6,7 +6,7 @@ local virtual_file = require("codediff.core.virtual_file")
 
 -- Setup CodeDiff command for tests
 local function setup_command()
-  if vim.fn.exists(':CodeDiff') ~= 2 then
+  if vim.fn.exists(":CodeDiff") ~= 2 then
     vim.api.nvim_create_user_command("CodeDiff", function(opts)
       commands.run(opts)
     end, {
@@ -28,7 +28,7 @@ describe("Virtual buffer diagnostics integration", function()
 
   it("Disables diagnostics on virtual buffers in real CodeDiff usage", function()
     -- Verify CodeDiff command exists
-    local has_command = vim.fn.exists(':CodeDiff') == 2
+    local has_command = vim.fn.exists(":CodeDiff") == 2
     assert.is_true(has_command, "CodeDiff command should be registered")
 
     -- This test runs the actual :CodeDiff command and verifies behavior
@@ -40,7 +40,7 @@ describe("Virtual buffer diagnostics integration", function()
     end
 
     -- Navigate to git repo root
-    vim.cmd('cd ' .. git_root)
+    vim.cmd("cd " .. git_root)
 
     -- Edit a file that exists in history
     local test_file = git_root .. "/lua/codediff/core/git.lua"
@@ -49,7 +49,7 @@ describe("Virtual buffer diagnostics integration", function()
       return
     end
 
-    vim.cmd('edit ' .. test_file)
+    vim.cmd("edit " .. test_file)
 
     -- Try to find a valid revision - use HEAD first, or HEAD~1 if possible
     local revision = "HEAD"
@@ -60,7 +60,7 @@ describe("Virtual buffer diagnostics integration", function()
 
     -- Run CodeDiff with a valid revision (use new syntax with "file" subcommand)
     local ok, err = pcall(function()
-      vim.cmd('CodeDiff file ' .. revision)
+      vim.cmd("CodeDiff file " .. revision)
     end)
 
     assert.is_true(ok, "CodeDiff command should execute successfully: " .. tostring(err))
@@ -83,17 +83,16 @@ describe("Virtual buffer diagnostics integration", function()
     for _, win in ipairs(wins) do
       local buf = vim.api.nvim_win_get_buf(win)
       local name = vim.api.nvim_buf_get_name(buf)
-      local is_virtual = name:match('^codediff://')
+      local is_virtual = name:match("^codediff://")
 
       if is_virtual then
         virtual_buf_found = true
-        local diag_enabled = vim.diagnostic.is_enabled({bufnr = buf})
+        local diag_enabled = vim.diagnostic.is_enabled({ bufnr = buf })
         if not diag_enabled then
           virtual_buf_diag_disabled = true
         end
 
-        assert.is_false(diag_enabled,
-          string.format('Virtual buffer %d should have diagnostics disabled', buf))
+        assert.is_false(diag_enabled, string.format("Virtual buffer %d should have diagnostics disabled", buf))
       end
     end
 

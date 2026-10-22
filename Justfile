@@ -26,14 +26,14 @@ test-lua: build
 
 # Format Lua and engine
 fmt:
-    stylua lua
+    stylua lua plugin tests
     cd engine && bun run format
 
 alias format := fmt
 
 # Lint Lua and engine
 lint:
-    stylua --check lua
+    stylua --check lua plugin tests
     cd engine && bun run lint && bun run format:check
 
 # Typecheck the engine

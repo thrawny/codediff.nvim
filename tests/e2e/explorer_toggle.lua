@@ -2,10 +2,10 @@
 return {
   setup = function(ctx, e2e)
     ctx.repo = e2e.create_temp_git_repo()
-    ctx.repo.write_file("file.txt", {"original"})
+    ctx.repo.write_file("file.txt", { "original" })
     ctx.repo.git("add .")
     ctx.repo.git("commit -m 'initial'")
-    ctx.repo.write_file("file.txt", {"modified"})
+    ctx.repo.write_file("file.txt", { "modified" })
     vim.cmd("edit " .. ctx.repo.path("file.txt"))
   end,
 
@@ -66,6 +66,8 @@ return {
   end,
 
   cleanup = function(ctx, e2e)
-    if ctx.repo then ctx.repo.cleanup() end
-  end
+    if ctx.repo then
+      ctx.repo.cleanup()
+    end
+  end,
 }

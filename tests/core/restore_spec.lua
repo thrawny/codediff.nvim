@@ -66,7 +66,9 @@ describe("restore_file", function()
       done = true
     end)
 
-    vim.wait(3000, function() return done end)
+    vim.wait(3000, function()
+      return done
+    end)
     assert.is_true(done, "Callback should be invoked")
     assert.is_nil(restore_err, "Should not error: " .. tostring(restore_err))
 
@@ -89,7 +91,9 @@ describe("restore_file", function()
       done = true
     end)
 
-    vim.wait(3000, function() return done end)
+    vim.wait(3000, function()
+      return done
+    end)
     assert.is_true(done, "Callback should be invoked")
     assert.is_nil(restore_err, "Should not error: " .. tostring(restore_err))
 
@@ -110,7 +114,9 @@ describe("restore_file", function()
       done = true
     end)
 
-    vim.wait(3000, function() return done end)
+    vim.wait(3000, function()
+      return done
+    end)
     assert.is_true(done, "Callback should be invoked")
     assert.is_nil(restore_err, "Should not error: " .. tostring(restore_err))
 
@@ -131,7 +137,9 @@ describe("restore_file", function()
       done = true
     end)
 
-    vim.wait(3000, function() return done end)
+    vim.wait(3000, function()
+      return done
+    end)
     assert.is_true(done, "Callback should be invoked")
     assert.is_nil(restore_err, "Should not error: " .. tostring(restore_err))
 
@@ -153,7 +161,9 @@ describe("restore_file", function()
       done = true
     end)
 
-    vim.wait(3000, function() return done end)
+    vim.wait(3000, function()
+      return done
+    end)
     assert.is_true(done, "Callback should be invoked")
     assert.is_nil(restore_err, "Should not error: " .. tostring(restore_err))
 
@@ -174,7 +184,9 @@ describe("restore_file", function()
       done = true
     end)
 
-    vim.wait(3000, function() return done end)
+    vim.wait(3000, function()
+      return done
+    end)
     assert.is_true(done, "Callback should be invoked")
     assert.is_not_nil(restore_err, "Should error on invalid revision")
 

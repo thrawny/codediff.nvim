@@ -184,10 +184,8 @@ describe("Move rendering (side-by-side)", function()
         expected_sign = "│"
       end
 
-      assert.equal(expected_sign, signs[line_0].text,
-        "original line " .. line .. " sign mismatch")
-      assert.equal("CodeDiffMoveTo", signs[line_0].hl,
-        "original line " .. line .. " sign_hl_group mismatch")
+      assert.equal(expected_sign, signs[line_0].text, "original line " .. line .. " sign mismatch")
+      assert.equal("CodeDiffMoveTo", signs[line_0].hl, "original line " .. line .. " sign_hl_group mismatch")
     end
 
     vim.fn.delete(lp)
@@ -222,10 +220,8 @@ describe("Move rendering (side-by-side)", function()
         expected_sign = "│"
       end
 
-      assert.equal(expected_sign, signs[line_0].text,
-        "modified line " .. line .. " sign mismatch")
-      assert.equal("CodeDiffMoveTo", signs[line_0].hl,
-        "modified line " .. line .. " sign_hl_group mismatch")
+      assert.equal(expected_sign, signs[line_0].text, "modified line " .. line .. " sign mismatch")
+      assert.equal("CodeDiffMoveTo", signs[line_0].hl, "modified line " .. line .. " sign_hl_group mismatch")
     end
 
     vim.fn.delete(lp)
@@ -244,15 +240,13 @@ describe("Move rendering (side-by-side)", function()
     -- Original side
     local nhl_orig = number_hl_on_buf(orig_buf)
     for line = orig_first, orig_last do
-      assert.equal("CodeDiffMoveTo", nhl_orig[line - 1],
-        "original line " .. line .. " should have number_hl_group = CodeDiffMoveTo")
+      assert.equal("CodeDiffMoveTo", nhl_orig[line - 1], "original line " .. line .. " should have number_hl_group = CodeDiffMoveTo")
     end
 
     -- Modified side
     local nhl_mod = number_hl_on_buf(mod_buf)
     for line = mod_first, mod_last do
-      assert.equal("CodeDiffMoveTo", nhl_mod[line - 1],
-        "modified line " .. line .. " should have number_hl_group = CodeDiffMoveTo")
+      assert.equal("CodeDiffMoveTo", nhl_mod[line - 1], "modified line " .. line .. " should have number_hl_group = CodeDiffMoveTo")
     end
 
     vim.fn.delete(lp)
@@ -289,7 +283,9 @@ describe("Move rendering (side-by-side)", function()
     local tested = 0
     while true do
       local name, ftype = vim.loop.fs_scandir_next(handle)
-      if not name then break end
+      if not name then
+        break
+      end
       if ftype == "directory" then
         local orig_path = pairs_dir .. "/" .. name .. "/original.txt"
         local mod_path = pairs_dir .. "/" .. name .. "/modified.txt"
@@ -323,7 +319,9 @@ describe("Move rendering (side-by-side)", function()
             end
           end
 
-          while vim.fn.tabpagenr("$") > 1 do vim.cmd("tabclose!") end
+          while vim.fn.tabpagenr("$") > 1 do
+            vim.cmd("tabclose!")
+          end
           tested = tested + 1
         end
       end

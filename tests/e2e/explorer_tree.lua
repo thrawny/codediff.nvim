@@ -2,14 +2,14 @@
 return {
   setup = function(ctx, e2e)
     ctx.repo = e2e.create_temp_git_repo()
-    ctx.repo.write_file("src/a.txt", {"aaa"})
-    ctx.repo.write_file("src/b.txt", {"bbb"})
-    ctx.repo.write_file("c.txt", {"ccc"})
+    ctx.repo.write_file("src/a.txt", { "aaa" })
+    ctx.repo.write_file("src/b.txt", { "bbb" })
+    ctx.repo.write_file("c.txt", { "ccc" })
     ctx.repo.git("add .")
     ctx.repo.git("commit -m 'initial'")
-    ctx.repo.write_file("src/a.txt", {"aaa modified"})
-    ctx.repo.write_file("src/b.txt", {"bbb modified"})
-    ctx.repo.write_file("c.txt", {"ccc modified"})
+    ctx.repo.write_file("src/a.txt", { "aaa modified" })
+    ctx.repo.write_file("src/b.txt", { "bbb modified" })
+    ctx.repo.write_file("c.txt", { "ccc modified" })
     vim.cmd("edit " .. ctx.repo.path("c.txt"))
   end,
 
@@ -38,10 +38,7 @@ return {
     ok = ok and e2e.assert_true(#ctx.explorer_lines > 0, "Explorer should have lines")
 
     -- Explorer should show file names
-    ok = ok and e2e.assert_true(
-      ctx.explorer_content:find("a.txt") or ctx.explorer_content:find("b.txt") or ctx.explorer_content:find("c.txt"),
-      "Explorer should show file names"
-    )
+    ok = ok and e2e.assert_true(ctx.explorer_content:find("a.txt") or ctx.explorer_content:find("b.txt") or ctx.explorer_content:find("c.txt"), "Explorer should show file names")
 
     -- Should have a group header
     ok = ok and e2e.assert_contains(ctx.explorer_content, "Changes", "Explorer should have Changes group")
@@ -53,6 +50,8 @@ return {
   end,
 
   cleanup = function(ctx, e2e)
-    if ctx.repo then ctx.repo.cleanup() end
-  end
+    if ctx.repo then
+      ctx.repo.cleanup()
+    end
+  end,
 }

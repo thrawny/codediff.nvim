@@ -11,7 +11,7 @@ Commit and push to `origin` after every change, once its checks pass.
 ## Checks
 
 - `just test-lua` runs every `tests/**/*_spec.lua` file. The runner finds new spec files by itself.
-- `stylua --check lua` checks Lua formatting. `just fmt` fixes it.
+- `stylua --check lua plugin tests` checks Lua formatting. `just fmt` fixes it.
 - `just test` also runs the engine tests. Run it when you touch `engine/`.
 
 Run one spec file:

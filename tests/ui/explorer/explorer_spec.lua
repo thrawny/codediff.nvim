@@ -500,5 +500,4 @@ describe("Explorer Mode", function()
 
     assert.is_true(notified, "Should notify for non-git directory")
   end)
-
 end)

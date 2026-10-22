@@ -60,10 +60,7 @@ local function wait_for_session_with_moves(tabpage, timeout_ms)
   local session
   local ok = vim.wait(timeout_ms, function()
     session = lifecycle.get_session(tabpage)
-    return session
-      and session.stored_diff_result
-      and session.stored_diff_result.moves
-      and #session.stored_diff_result.moves > 0
+    return session and session.stored_diff_result and session.stored_diff_result.moves and #session.stored_diff_result.moves > 0
   end, 50)
   return ok, session
 end
@@ -97,8 +94,12 @@ describe("gm align_move keymap", function()
     while vim.fn.tabpagenr("$") > 1 do
       vim.cmd("tabclose!")
     end
-    if left_path then pcall(vim.fn.delete, left_path) end
-    if right_path then pcall(vim.fn.delete, right_path) end
+    if left_path then
+      pcall(vim.fn.delete, left_path)
+    end
+    if right_path then
+      pcall(vim.fn.delete, right_path)
+    end
     left_path, right_path = nil, nil
   end)
 
@@ -213,9 +214,7 @@ describe("gm align_move keymap", function()
     end)
 
     -- The paired block on the modified side should be aligned to the same visual row
-    assert.are.equal(orig_visual_after, mod_visual,
-      string.format("Moved block visual rows should match: original winline=%d, modified winline=%d",
-        orig_visual_after, mod_visual))
+    assert.are.equal(orig_visual_after, mod_visual, string.format("Moved block visual rows should match: original winline=%d, modified winline=%d", orig_visual_after, mod_visual))
   end)
 
   -- ──────────────────────────────────────────────────────────────
@@ -270,10 +269,8 @@ describe("gm align_move keymap", function()
     vim.cmd("redraw")
 
     -- Scrollbind should be restored to its original state
-    assert.are.equal(orig_sb_before, vim.wo[session.original_win].scrollbind,
-      "scrollbind should be restored on original window")
-    assert.are.equal(mod_sb_before, vim.wo[session.modified_win].scrollbind,
-      "scrollbind should be restored on modified window")
+    assert.are.equal(orig_sb_before, vim.wo[session.original_win].scrollbind, "scrollbind should be restored on original window")
+    assert.are.equal(mod_sb_before, vim.wo[session.modified_win].scrollbind, "scrollbind should be restored on modified window")
   end)
 
   -- ──────────────────────────────────────────────────────────────
@@ -322,7 +319,9 @@ describe("gm align_move keymap", function()
     vim.api.nvim_set_current_win(session.modified_win)
     vim.cmd("doautocmd WinLeave")
     -- Process vim.schedule callbacks so the deferred restore runs
-    vim.wait(100, function() return false end)
+    vim.wait(100, function()
+      return false
+    end)
     vim.cmd("redraw")
 
     -- Both windows should be back to pre-gm scroll positions
@@ -333,14 +332,10 @@ describe("gm align_move keymap", function()
       return vim.fn.winsaveview()
     end)
 
-    assert.are.equal(orig_view_before.topline, orig_view_after.topline,
-      "original window topline should be restored after WinLeave")
-    assert.are.equal(mod_view_before.topline, mod_view_after.topline,
-      "modified window topline should be restored after WinLeave")
-    assert.is_true(vim.wo[session.original_win].scrollbind,
-      "scrollbind should be re-enabled on original window")
-    assert.is_true(vim.wo[session.modified_win].scrollbind,
-      "scrollbind should be re-enabled on modified window")
+    assert.are.equal(orig_view_before.topline, orig_view_after.topline, "original window topline should be restored after WinLeave")
+    assert.are.equal(mod_view_before.topline, mod_view_after.topline, "modified window topline should be restored after WinLeave")
+    assert.is_true(vim.wo[session.original_win].scrollbind, "scrollbind should be re-enabled on original window")
+    assert.is_true(vim.wo[session.modified_win].scrollbind, "scrollbind should be re-enabled on modified window")
   end)
 
   -- ──────────────────────────────────────────────────────────────
@@ -404,7 +399,9 @@ describe("gm align_move keymap", function()
     local tested = 0
     while true do
       local name, ftype = vim.loop.fs_scandir_next(handle)
-      if not name then break end
+      if not name then
+        break
+      end
       if ftype == "directory" then
         local orig_path = pairs_dir .. "/" .. name .. "/original.txt"
         local mod_path = pairs_dir .. "/" .. name .. "/modified.txt"
@@ -465,8 +462,7 @@ describe("gm align_move keymap", function()
               local orig_lc = vim.api.nvim_buf_line_count(session.original_bufnr)
               local mod_lc = vim.api.nvim_buf_line_count(session.modified_bufnr)
               if orig_lc >= 30 and mod_lc >= 30 then
-                assert.are.equal(my_wl, other_wl,
-                  name .. ": gm alignment failed, orig_wl=" .. my_wl .. " mod_wl=" .. other_wl)
+                assert.are.equal(my_wl, other_wl, name .. ": gm alignment failed, orig_wl=" .. my_wl .. " mod_wl=" .. other_wl)
               end
 
               -- Restore scrollbind
@@ -476,7 +472,9 @@ describe("gm align_move keymap", function()
             end
           end
 
-          while vim.fn.tabpagenr("$") > 1 do vim.cmd("tabclose!") end
+          while vim.fn.tabpagenr("$") > 1 do
+            vim.cmd("tabclose!")
+          end
           tested = tested + 1
         end
       end

@@ -2,13 +2,13 @@
 return {
   setup = function(ctx, e2e)
     ctx.repo = e2e.create_temp_git_repo()
-    ctx.repo.write_file("file.txt", {"version 1"})
+    ctx.repo.write_file("file.txt", { "version 1" })
     ctx.repo.git("add .")
     ctx.repo.git("commit -m 'first commit'")
-    ctx.repo.write_file("file.txt", {"version 2"})
+    ctx.repo.write_file("file.txt", { "version 2" })
     ctx.repo.git("add .")
     ctx.repo.git("commit -m 'second commit'")
-    ctx.repo.write_file("file.txt", {"version 3"})
+    ctx.repo.write_file("file.txt", { "version 3" })
     ctx.repo.git("add .")
     ctx.repo.git("commit -m 'third commit'")
     vim.cmd("edit " .. ctx.repo.path("file.txt"))
@@ -42,7 +42,9 @@ return {
 
     -- History panel should exist
     ok = ok and e2e.assert_true(ctx.history_win ~= nil, "History window should exist")
-    if not ctx.history_win then return false end
+    if not ctx.history_win then
+      return false
+    end
 
     -- History should have content with commit messages
     ok = ok and e2e.assert_true(#ctx.history_lines > 0, "History should have lines")
@@ -52,8 +54,7 @@ return {
     for _, win_info in ipairs(ctx.all_windows) do
       if win_info.winid ~= ctx.history_win then
         local other_row = vim.api.nvim_win_get_position(win_info.winid)[1]
-        ok = ok and e2e.assert_true(ctx.history_row >= other_row,
-          "History should be at bottom (row " .. ctx.history_row .. " vs other " .. other_row .. ")")
+        ok = ok and e2e.assert_true(ctx.history_row >= other_row, "History should be at bottom (row " .. ctx.history_row .. " vs other " .. other_row .. ")")
       end
     end
 
@@ -61,6 +62,8 @@ return {
   end,
 
   cleanup = function(ctx, e2e)
-    if ctx.repo then ctx.repo.cleanup() end
-  end
+    if ctx.repo then
+      ctx.repo.cleanup()
+    end
+  end,
 }

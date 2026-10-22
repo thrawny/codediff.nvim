@@ -1,7 +1,7 @@
 -- Test: Command completion
 -- Validates :CodeDiff command completion with dynamic git refs
 
-local git = require('codediff.core.git')
+local git = require("codediff.core.git")
 local commands = require("codediff.commands")
 
 describe("Command Completion", function()

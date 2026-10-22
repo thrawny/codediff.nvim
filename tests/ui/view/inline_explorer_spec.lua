@@ -109,8 +109,7 @@ describe("Inline diff with explorer", function()
     assert.equal(1, #diff_wins, "Inline layout should have exactly 1 diff window (not 2)")
 
     -- Both original_win and modified_win should point to the same window
-    assert.equal(session.original_win, session.modified_win,
-      "In inline mode, original_win and modified_win should be the same window")
+    assert.equal(session.original_win, session.modified_win, "In inline mode, original_win and modified_win should be the same window")
 
     -- Result should contain buffers
     assert.is_not_nil(result, "create() should return a result")
@@ -170,7 +169,9 @@ describe("Inline diff with explorer", function()
     vim.cmd("redraw")
     vim.wait(300, function()
       local s = lifecycle.get_session(tabpage)
-      if not s then return false end
+      if not s then
+        return false
+      end
       -- Check that buffers have changed or diff result updated
       return s.modified_bufnr ~= mod_buf_a or s.modified_path == right_b
     end, 20)
@@ -243,8 +244,7 @@ describe("Inline diff with explorer", function()
     -- Verify: diff result should be empty
     assert.is_not_nil(session.stored_diff_result, "stored_diff_result should exist")
     if session.stored_diff_result.changes then
-      assert.equal(0, #session.stored_diff_result.changes,
-        "Untracked file should have no diff changes")
+      assert.equal(0, #session.stored_diff_result.changes, "Untracked file should have no diff changes")
     end
 
     -- Cleanup
@@ -275,8 +275,7 @@ describe("Inline diff with explorer", function()
     -- Verify no extmarks after single file
     local session_single = lifecycle.get_session(tabpage)
     local single_buf = session_single.modified_bufnr
-    assert.equal(0, count_inline_extmarks(single_buf),
-      "Single file should have no inline extmarks")
+    assert.equal(0, count_inline_extmarks(single_buf), "Single file should have no inline extmarks")
 
     -- Now switch to a diff (simulates selecting a modified file in explorer)
     local orig_lines = { "hello", "world" }
@@ -301,8 +300,12 @@ describe("Inline diff with explorer", function()
     vim.cmd("redraw")
     vim.wait(500, function()
       local s = lifecycle.get_session(tabpage)
-      if not s then return false end
-      if not vim.api.nvim_buf_is_valid(s.modified_bufnr) then return false end
+      if not s then
+        return false
+      end
+      if not vim.api.nvim_buf_is_valid(s.modified_bufnr) then
+        return false
+      end
       return count_inline_extmarks(s.modified_bufnr) > 0
     end, 20)
 
@@ -313,8 +316,7 @@ describe("Inline diff with explorer", function()
     assert.is_true(vim.api.nvim_buf_is_valid(diff_buf), "Diff buffer should be valid")
 
     local marks = count_inline_extmarks(diff_buf)
-    assert.is_true(marks > 0,
-      "Should have inline extmarks after switching back to diff (got " .. marks .. ")")
+    assert.is_true(marks > 0, "Should have inline extmarks after switching back to diff (got " .. marks .. ")")
 
     -- Cleanup
     vim.fn.delete(untracked_path)

@@ -316,15 +316,23 @@ describe("Hunk operations (side-by-side)", function()
     -- or for the explorer group to change.
     local switched = vim.wait(8000, function()
       local s = lifecycle.get_session(tabpage)
-      if s and s.modified_revision == ":0" then return true end
-      if explorer.current_file_group == "staged" then return true end
+      if s and s.modified_revision == ":0" then
+        return true
+      end
+      if explorer.current_file_group == "staged" then
+        return true
+      end
       return false
     end, 100)
 
-    assert.is_true(switched,
+    assert.is_true(
+      switched,
       "After staging last hunk, should switch to staged view. "
-        .. "modified_revision=" .. tostring(lifecycle.get_session(tabpage).modified_revision)
-        .. ", group=" .. tostring(explorer.current_file_group))
+        .. "modified_revision="
+        .. tostring(lifecycle.get_session(tabpage).modified_revision)
+        .. ", group="
+        .. tostring(explorer.current_file_group)
+    )
   end)
 
   -- --------------------------------------------------------------------------
@@ -409,7 +417,9 @@ describe("Hunk operations (side-by-side)", function()
     vim.fn.confirm = original_confirm
 
     -- Wait for the async git operation to complete
-    vim.wait(2000, function() return false end, 100)
+    vim.wait(2000, function()
+      return false
+    end, 100)
 
     -- Verify file content on disk: line 1 should be reverted to original
     local disk_lines = vim.fn.readfile(repo.path("file1.txt"))
@@ -530,15 +540,23 @@ describe("Hunk operations (inline)", function()
     -- After staging the only hunk, wait for staged view or group change
     local switched = vim.wait(8000, function()
       local s = lifecycle.get_session(tabpage)
-      if s and s.modified_revision == ":0" then return true end
-      if explorer.current_file_group == "staged" then return true end
+      if s and s.modified_revision == ":0" then
+        return true
+      end
+      if explorer.current_file_group == "staged" then
+        return true
+      end
       return false
     end, 100)
 
-    assert.is_true(switched,
+    assert.is_true(
+      switched,
       "After staging last hunk in inline mode, should switch to staged view. "
-        .. "modified_revision=" .. tostring(lifecycle.get_session(tabpage).modified_revision)
-        .. ", group=" .. tostring(explorer.current_file_group))
+        .. "modified_revision="
+        .. tostring(lifecycle.get_session(tabpage).modified_revision)
+        .. ", group="
+        .. tostring(explorer.current_file_group)
+    )
   end)
 
   -- --------------------------------------------------------------------------
@@ -637,16 +655,22 @@ describe("Explorer hunk/staging actions", function()
     -- Wait for view to transition to staged — NO manual refresh fallback
     local transitioned = vim.wait(8000, function()
       local s = lifecycle.get_session(tabpage)
-      if s and s.modified_revision == ":0" then return true end
-      if explorer.current_file_group == "staged" then return true end
+      if s and s.modified_revision == ":0" then
+        return true
+      end
+      if explorer.current_file_group == "staged" then
+        return true
+      end
       return false
     end, 200)
 
     assert.is_true(
       transitioned,
       "After stage_all, view should transition to staged automatically. "
-        .. "modified_revision=" .. tostring(lifecycle.get_session(tabpage).modified_revision)
-        .. ", group=" .. tostring(explorer.current_file_group)
+        .. "modified_revision="
+        .. tostring(lifecycle.get_session(tabpage).modified_revision)
+        .. ", group="
+        .. tostring(explorer.current_file_group)
     )
   end)
 
@@ -683,8 +707,12 @@ describe("Explorer hunk/staging actions", function()
     -- Wait for view to restore to unstaged with the hunk visible
     local restored = vim.wait(8000, function()
       local s = lifecycle.get_session(tabpage)
-      if not s or not s.stored_diff_result then return false end
-      if s.modified_revision == ":0" then return false end
+      if not s or not s.stored_diff_result then
+        return false
+      end
+      if s.modified_revision == ":0" then
+        return false
+      end
       return #s.stored_diff_result.changes >= 1
     end, 200)
 
@@ -777,10 +805,18 @@ describe("Sequential hunk operations", function()
     -- - Or stored_diff_result.changes drops to 0
     local all_staged = vim.wait(8000, function()
       local s = lifecycle.get_session(tabpage)
-      if not s then return false end
-      if s.modified_revision == ":0" then return true end
-      if explorer.current_file_group == "staged" then return true end
-      if s.stored_diff_result and s.stored_diff_result.changes and #s.stored_diff_result.changes == 0 then return true end
+      if not s then
+        return false
+      end
+      if s.modified_revision == ":0" then
+        return true
+      end
+      if explorer.current_file_group == "staged" then
+        return true
+      end
+      if s.stored_diff_result and s.stored_diff_result.changes and #s.stored_diff_result.changes == 0 then
+        return true
+      end
       return false
     end, 100)
 

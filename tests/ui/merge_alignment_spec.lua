@@ -13,7 +13,7 @@ describe("Merge Alignment", function()
     return {
       original = { start_line = orig_start, end_line = orig_end },
       modified = { start_line = mod_start, end_line = mod_end },
-      inner_changes = inner_changes or {}
+      inner_changes = inner_changes or {},
     }
   end
 
@@ -34,7 +34,7 @@ describe("Merge Alignment", function()
     local diff1 = make_diff({ make_change(2, 4, 2, 6) })
     local diff2 = make_diff({ make_change(2, 4, 2, 5) })
 
-    local left_fillers, right_fillers = merge_alignment.compute_merge_fillers(diff1, diff2, {"a", "b", "c", "d"}, {"a", "b", "c", "d", "e", "f"}, {"a", "b", "c", "d", "e"})
+    local left_fillers, right_fillers = merge_alignment.compute_merge_fillers(diff1, diff2, { "a", "b", "c", "d" }, { "a", "b", "c", "d", "e", "f" }, { "a", "b", "c", "d", "e" })
 
     -- Right side has fewer lines, so it should get a filler
     assert.is_true(#right_fillers > 0 or #left_fillers > 0)
@@ -46,11 +46,17 @@ describe("Merge Alignment", function()
     local diff2 = make_diff({ make_change(10, 12, 10, 14) })
 
     local base_lines = {}
-    for i = 1, 20 do base_lines[i] = "line" .. i end
+    for i = 1, 20 do
+      base_lines[i] = "line" .. i
+    end
     local input1_lines = {}
-    for i = 1, 21 do input1_lines[i] = "line" .. i end
+    for i = 1, 21 do
+      input1_lines[i] = "line" .. i
+    end
     local input2_lines = {}
-    for i = 1, 22 do input2_lines[i] = "line" .. i end
+    for i = 1, 22 do
+      input2_lines[i] = "line" .. i
+    end
 
     local left_fillers, right_fillers = merge_alignment.compute_merge_fillers(diff1, diff2, base_lines, input1_lines, input2_lines)
 
@@ -66,10 +72,11 @@ describe("Merge Alignment", function()
     local diff2 = make_diff({ make_change(2, 4, 2, 5) })
 
     local fillers, conflict_left, conflict_right = merge_alignment.compute_merge_fillers_and_conflicts(
-      diff1, diff2,
-      {"a", "b", "c", "d"},
-      {"a", "b", "c", "d", "e", "f"},
-      {"a", "b", "c", "d", "e"}
+      diff1,
+      diff2,
+      { "a", "b", "c", "d" },
+      { "a", "b", "c", "d", "e", "f" },
+      { "a", "b", "c", "d", "e" }
     )
 
     assert.is_table(fillers)
@@ -82,16 +89,18 @@ describe("Merge Alignment", function()
   -- Test 5: Only one side has changes (no conflict)
   it("Only one side has changes produces no conflicts", function()
     local diff1 = make_diff({ make_change(5, 8, 5, 10) })
-    local diff2 = make_diff({})  -- No changes on this side
+    local diff2 = make_diff({}) -- No changes on this side
 
     local base_lines = {}
-    for i = 1, 10 do base_lines[i] = "line" .. i end
+    for i = 1, 10 do
+      base_lines[i] = "line" .. i
+    end
     local input1_lines = {}
-    for i = 1, 12 do input1_lines[i] = "line" .. i end
+    for i = 1, 12 do
+      input1_lines[i] = "line" .. i
+    end
 
-    local fillers, conflict_left, conflict_right = merge_alignment.compute_merge_fillers_and_conflicts(
-      diff1, diff2, base_lines, input1_lines, base_lines
-    )
+    local fillers, conflict_left, conflict_right = merge_alignment.compute_merge_fillers_and_conflicts(diff1, diff2, base_lines, input1_lines, base_lines)
 
     assert.is_table(fillers)
     -- When only one side has changes, it's not a conflict
@@ -103,12 +112,12 @@ describe("Merge Alignment", function()
   -- Test 6: Filler structure is correct
   it("Filler structure has after_line and count", function()
     -- Create a scenario that definitely produces fillers
-    local diff1 = make_diff({ make_change(2, 3, 2, 5) })  -- Adds 2 lines
-    local diff2 = make_diff({ make_change(2, 3, 2, 3) })  -- No change in line count
+    local diff1 = make_diff({ make_change(2, 3, 2, 5) }) -- Adds 2 lines
+    local diff2 = make_diff({ make_change(2, 3, 2, 3) }) -- No change in line count
 
-    local base_lines = {"a", "b", "c", "d"}
-    local input1_lines = {"a", "b", "c", "d", "e", "f"}
-    local input2_lines = {"a", "b", "c", "d"}
+    local base_lines = { "a", "b", "c", "d" }
+    local input1_lines = { "a", "b", "c", "d", "e", "f" }
+    local input2_lines = { "a", "b", "c", "d" }
 
     local left_fillers, right_fillers = merge_alignment.compute_merge_fillers(diff1, diff2, base_lines, input1_lines, input2_lines)
 
@@ -127,18 +136,24 @@ describe("Merge Alignment", function()
     -- Two adjacent changes
     local diff1 = make_diff({
       make_change(2, 4, 2, 5),
-      make_change(4, 6, 5, 8)
+      make_change(4, 6, 5, 8),
     })
     local diff2 = make_diff({
-      make_change(2, 6, 2, 7)
+      make_change(2, 6, 2, 7),
     })
 
     local base_lines = {}
-    for i = 1, 10 do base_lines[i] = "line" .. i end
+    for i = 1, 10 do
+      base_lines[i] = "line" .. i
+    end
     local input1_lines = {}
-    for i = 1, 12 do input1_lines[i] = "line" .. i end
+    for i = 1, 12 do
+      input1_lines[i] = "line" .. i
+    end
     local input2_lines = {}
-    for i = 1, 11 do input2_lines[i] = "line" .. i end
+    for i = 1, 11 do
+      input2_lines[i] = "line" .. i
+    end
 
     local left_fillers, right_fillers = merge_alignment.compute_merge_fillers(diff1, diff2, base_lines, input1_lines, input2_lines)
 
@@ -150,15 +165,14 @@ describe("Merge Alignment", function()
   -- Test 8: Handles inner changes
   it("Handles changes with inner_changes", function()
     local inner = {
-      { original = { start_line = 2, start_col = 5, end_line = 2, end_col = 10 },
-        modified = { start_line = 2, start_col = 5, end_line = 2, end_col = 15 } }
+      { original = { start_line = 2, start_col = 5, end_line = 2, end_col = 10 }, modified = { start_line = 2, start_col = 5, end_line = 2, end_col = 15 } },
     }
     local diff1 = make_diff({ make_change(2, 3, 2, 3, inner) })
     local diff2 = make_diff({ make_change(2, 3, 2, 4) })
 
-    local base_lines = {"a", "b", "c"}
-    local input1_lines = {"a", "b", "c"}
-    local input2_lines = {"a", "b", "c", "d"}
+    local base_lines = { "a", "b", "c" }
+    local input1_lines = { "a", "b", "c" }
+    local input2_lines = { "a", "b", "c", "d" }
 
     local left_fillers, right_fillers = merge_alignment.compute_merge_fillers(diff1, diff2, base_lines, input1_lines, input2_lines)
 

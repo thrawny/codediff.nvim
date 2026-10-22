@@ -25,9 +25,13 @@ return {
     local function find_untracked()
       local lines = e2e.get_explorer_files()
       ctx.explorer_lines = lines
-      if not lines then return nil end
+      if not lines then
+        return nil
+      end
       for i, line in ipairs(lines) do
-        if line:find("untracked.txt") then return i end
+        if line:find("untracked.txt") then
+          return i
+        end
       end
       return nil
     end
@@ -100,23 +104,24 @@ return {
   validate = function(ctx, e2e)
     local ok = true
 
-    ok = ok and e2e.assert_true(ctx.found_untracked,
-      "Should find untracked.txt in explorer (lines: " .. vim.inspect(ctx.explorer_lines) .. ")")
-    if not ctx.found_untracked then return false end
+    ok = ok and e2e.assert_true(ctx.found_untracked, "Should find untracked.txt in explorer (lines: " .. vim.inspect(ctx.explorer_lines) .. ")")
+    if not ctx.found_untracked then
+      return false
+    end
 
     ok = ok and e2e.assert_true(ctx.error == nil, "No error: " .. tostring(ctx.error))
 
     -- Core invariant: stored_diff_result must have .changes right after show_untracked_file
-    ok = ok and e2e.assert_true(ctx.immediate_has_changes,
-      "stored_diff_result.changes must not be nil immediately after show_untracked_file (was: "
-        .. tostring(ctx.immediate_changes_type) .. ")")
+    ok = ok
+      and e2e.assert_true(
+        ctx.immediate_has_changes,
+        "stored_diff_result.changes must not be nil immediately after show_untracked_file (was: " .. tostring(ctx.immediate_changes_type) .. ")"
+      )
 
-    ok = ok and e2e.assert_true(ctx.immediate_has_moves,
-      "stored_diff_result.moves must not be nil immediately after show_untracked_file")
+    ok = ok and e2e.assert_true(ctx.immediate_has_moves, "stored_diff_result.moves must not be nil immediately after show_untracked_file")
 
     -- Tab cycle should not crash
-    ok = ok and e2e.assert_true(ctx.cycle_ok ~= false,
-      "Tab cycle should not error: " .. tostring(ctx.cycle_err))
+    ok = ok and e2e.assert_true(ctx.cycle_ok ~= false, "Tab cycle should not error: " .. tostring(ctx.cycle_err))
 
     -- Session survives the cycle
     ok = ok and e2e.assert_true(ctx.session_alive, "Session should exist after tab cycle")
@@ -127,7 +132,11 @@ return {
   end,
 
   cleanup = function(ctx, e2e)
-    pcall(function() e2e.cleanup_tabs() end)
-    if ctx.repo then ctx.repo.cleanup() end
+    pcall(function()
+      e2e.cleanup_tabs()
+    end)
+    if ctx.repo then
+      ctx.repo.cleanup()
+    end
   end,
 }

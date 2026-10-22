@@ -12,8 +12,7 @@ h.ensure_plugin_loaded()
 local config = require("codediff.config")
 local lifecycle = require("codediff.ui.lifecycle")
 
-local LONG_LINE =
-  "func veryLongSignature(ctx context.Context, a uuid.UUID, b uuid.UUID, c uuid.UUID) ([]stylophone.MatchedTrack, error)"
+local LONG_LINE = "func veryLongSignature(ctx context.Context, a uuid.UUID, b uuid.UUID, c uuid.UUID) ([]stylophone.MatchedTrack, error)"
 
 local function open_diff(repo)
   vim.fn.chdir(repo.dir)

@@ -1,7 +1,7 @@
 -- Test explorer staging/unstaging workflow with virtual files
 -- This tests buffer management during file switching in explorer mode
 
-local h = dofile('tests/helpers.lua')
+local h = dofile("tests/helpers.lua")
 
 -- Ensure plugin is loaded (needed for PlenaryBustedFile subprocess)
 h.ensure_plugin_loaded()
@@ -12,17 +12,17 @@ describe("Explorer Buffer Management", function()
   before_each(function()
     -- Create a temp git repo using helper
     repo = h.create_temp_git_repo()
-    
+
     -- Create initial file and commit
-    repo.write_file('test.txt', {'line 1', 'line 2', 'line 3'})
-    repo.git('add test.txt')
-    repo.git('commit -m initial')
+    repo.write_file("test.txt", { "line 1", "line 2", "line 3" })
+    repo.git("add test.txt")
+    repo.git("commit -m initial")
   end)
 
   after_each(function()
     -- Close all extra tabs before cleanup
     h.close_extra_tabs()
-    
+
     -- Cleanup temp directory
     if repo then
       repo.cleanup()
@@ -30,7 +30,7 @@ describe("Explorer Buffer Management", function()
   end)
 
   it("should parse virtual file URLs correctly", function()
-    local virtual_file = require('codediff.core.virtual_file')
+    local virtual_file = require("codediff.core.virtual_file")
 
     -- Use the actual repo.dir for cross-platform compatibility
     local normalized_dir = h.normalize_path(repo.dir)
@@ -58,26 +58,28 @@ describe("Explorer Buffer Management", function()
   end)
 
   it("should load virtual file content via BufReadCmd", function()
-    local virtual_file = require('codediff.core.virtual_file')
+    local virtual_file = require("codediff.core.virtual_file")
 
     -- Listen for the loaded event
     local event_fired = false
     local event_buf = nil
-    vim.api.nvim_create_autocmd('User', {
-      pattern = 'CodeDiffVirtualFileLoaded',
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "CodeDiffVirtualFileLoaded",
       callback = function(args)
         event_fired = true
         event_buf = args.data and args.data.buf
-      end
+      end,
     })
 
     -- Create and edit a virtual file URL
-    local url = virtual_file.create_url(repo.dir, ':0', 'test.txt')
-    vim.cmd('edit! ' .. vim.fn.fnameescape(url))
+    local url = virtual_file.create_url(repo.dir, ":0", "test.txt")
+    vim.cmd("edit! " .. vim.fn.fnameescape(url))
     local buf = vim.api.nvim_get_current_buf()
 
     -- Wait for async loading to complete
-    local ok = vim.wait(5000, function() return event_fired end, 50)
+    local ok = vim.wait(5000, function()
+      return event_fired
+    end, 50)
 
     assert.is_true(ok, "Event should fire within timeout")
     assert.is_true(event_fired, "CodeDiffVirtualFileLoaded should fire")
@@ -92,23 +94,23 @@ describe("Explorer Buffer Management", function()
   it("should refresh staged content when index changes", function()
     -- This tests the full staging workflow:
     -- 1. Make change A -> validate in Changes
-    -- 2. Stage change A -> validate in Staged Changes  
+    -- 2. Stage change A -> validate in Staged Changes
     -- 3. Make change B -> validate Changes has B, Staged has A
     -- 4. Stage change B -> validate Staged has A+B
     -- 5. Unstage file -> validate Changes has A+B
-    
-    local view = require('codediff.ui.view')
-    local lifecycle = require('codediff.ui.lifecycle')
+
+    local view = require("codediff.ui.view")
+    local lifecycle = require("codediff.ui.lifecycle")
 
     -- Step 1: Make change A
-    repo.write_file('test.txt', {'line 1', 'line 2', 'line 3', 'change A'})
+    repo.write_file("test.txt", { "line 1", "line 2", "line 3", "change A" })
 
     -- Create diff view for unstaged changes (index vs working)
     local config_changes = {
       mode = "standalone",
       git_root = repo.dir,
-      original_path = 'test.txt',
-      modified_path = repo.path('test.txt'),
+      original_path = "test.txt",
+      modified_path = repo.path("test.txt"),
       original_revision = ":0",
       modified_revision = "WORKING",
     }
@@ -136,8 +138,8 @@ describe("Explorer Buffer Management", function()
     local config_staged = {
       mode = "standalone",
       git_root = repo.dir,
-      original_path = 'test.txt',
-      modified_path = 'test.txt',
+      original_path = "test.txt",
+      modified_path = "test.txt",
       original_revision = "HEAD",
       modified_revision = ":0",
     }
@@ -152,7 +154,7 @@ describe("Explorer Buffer Management", function()
     h.assert_contains(content, "change A", "Staged should show change A after staging")
 
     -- Step 3: Make change B (while A is staged)
-    repo.write_file('test.txt', {'line 1', 'line 2', 'line 3', 'change A', 'change B'})
+    repo.write_file("test.txt", { "line 1", "line 2", "line 3", "change A", "change B" })
 
     -- Switch back to Changes view (index vs working)
     view.update(tabpage, config_changes, false)
