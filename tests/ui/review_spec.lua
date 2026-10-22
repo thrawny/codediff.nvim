@@ -566,3 +566,58 @@ describe("codediff.review foundation", function()
     assert.is_nil(require("codediff.ui.lifecycle").get_session(tabpage))
   end)
 end)
+
+describe("codediff.review.pr branch_base", function()
+  local function fake_system(responses)
+    return function(args)
+      local key = table.concat(args, " ")
+      for pattern, result in pairs(responses) do
+        if key:find(pattern, 1, true) then
+          return result
+        end
+      end
+      return { code = 1, stdout = "", stderr = "unexpected: " .. key }
+    end
+  end
+
+  local root = { code = 0, stdout = "/repo\n" }
+
+  it("uses the open PR's base so stacked PRs diff against their parent", function()
+    local base = require("codediff.review.pr").branch_base({
+      system = fake_system({
+        ["rev-parse --show-toplevel"] = root,
+        ["gh pr view"] = { code = 0, stdout = "feature-a\n" },
+        ["rev-parse --verify --quiet refs/remotes/origin/feature-a"] = { code = 0, stdout = "abc\n" },
+      }),
+    })
+    assert.equals("origin/feature-a", base)
+  end)
+
+  it("uses the local base branch when the remote ref is missing", function()
+    local base = require("codediff.review.pr").branch_base({
+      system = fake_system({
+        ["rev-parse --show-toplevel"] = root,
+        ["gh pr view"] = { code = 0, stdout = "feature-a\n" },
+        ["rev-parse --verify --quiet refs/heads/feature-a"] = { code = 0, stdout = "abc\n" },
+      }),
+    })
+    assert.equals("feature-a", base)
+  end)
+
+  it("falls back to the remote's default branch without a PR", function()
+    local base = require("codediff.review.pr").branch_base({
+      system = fake_system({
+        ["rev-parse --show-toplevel"] = root,
+        ["symbolic-ref"] = { code = 0, stdout = "origin/master\n" },
+      }),
+    })
+    assert.equals("origin/master", base)
+  end)
+
+  it("falls back to origin/main when nothing else resolves", function()
+    local base = require("codediff.review.pr").branch_base({
+      system = fake_system({ ["rev-parse --show-toplevel"] = root }),
+    })
+    assert.equals("origin/main", base)
+  end)
+end)

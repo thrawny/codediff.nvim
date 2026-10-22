@@ -6,12 +6,23 @@ vim.g.loaded_codediff_review = true
 require("codediff.review").setup()
 
 local subcommands = {
-  open = { fn = function() require("codediff.review").open() end, desc = "Open codediff review" },
+  open = {
+    fn = function()
+      require("codediff.review").open()
+    end,
+    desc = "Open codediff review",
+  },
   commits = {
     fn = function(args)
       require("codediff.review").open_commits(args[1], args[2])
     end,
     desc = "Open review for a revision or revision range",
+  },
+  branch = {
+    fn = function(args)
+      require("codediff.review").open_branch(args[1])
+    end,
+    desc = "Open review for the current branch against its PR base",
   },
   pr = {
     fn = function(args)
@@ -19,8 +30,18 @@ local subcommands = {
     end,
     desc = "Open review for a GitHub pull request",
   },
-  close = { fn = function() require("codediff.review").close() end, desc = "Close review" },
-  toggle = { fn = function() require("codediff.review").toggle_readonly() end, desc = "Toggle readonly/edit mode" },
+  close = {
+    fn = function()
+      require("codediff.review").close()
+    end,
+    desc = "Close review",
+  },
+  toggle = {
+    fn = function()
+      require("codediff.review").toggle_readonly()
+    end,
+    desc = "Toggle readonly/edit mode",
+  },
 }
 
 local subcommand_names = vim.tbl_keys(subcommands)
@@ -35,11 +56,7 @@ local function create_review_command(name)
 
     local subcmd = subcommands[cmd]
     if not subcmd then
-      vim.notify(
-        "Unknown subcommand: " .. cmd .. "\nAvailable: " .. table.concat(subcommand_names, ", "),
-        vim.log.levels.ERROR,
-        { title = "codediff.review" }
-      )
+      vim.notify("Unknown subcommand: " .. cmd .. "\nAvailable: " .. table.concat(subcommand_names, ", "), vim.log.levels.ERROR, { title = "codediff.review" })
       return
     end
 

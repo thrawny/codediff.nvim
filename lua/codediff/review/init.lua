@@ -191,6 +191,20 @@ function M.open_merge_base(base_revision, target_revision)
   return true
 end
 
+-- Review the checked-out branch and its uncommitted changes against base, or
+-- against the branch's PR base when base is omitted.
+function M.open_branch(base)
+  if not base or base == "" then
+    local err
+    base, err = require("codediff.review.pr").branch_base()
+    if err then
+      vim.notify(err, vim.log.levels.ERROR, { title = "codediff.review" })
+      return false
+    end
+  end
+  return M.open_merge_base(base, "WORKING")
+end
+
 function M.open_pr(number)
   require("codediff.review.pr").open(number)
 end

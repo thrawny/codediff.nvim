@@ -180,6 +180,41 @@ function M.review_pr(pr, root, deps)
   open_commits(base_sha, pr_sha)
 end
 
+local function ref_exists(ref, root, deps)
+  return (deps.system or system)({ "git", "rev-parse", "--verify", "--quiet", ref }, root).code == 0
+end
+
+-- The base to review the checked-out branch against: its open PR's base, so a
+-- stacked PR is reviewed against its parent branch, else the remote's default branch.
+function M.branch_base(deps)
+  deps = deps or {}
+  local run = deps.system or system
+  local root, root_err = git_root(deps)
+  if root_err then
+    return nil, root_err
+  end
+  local remote = github_config().remote
+
+  local view = run({ "gh", "pr", "view", "--json", "baseRefName", "--jq", ".baseRefName" }, root)
+  local pr_base = view.code == 0 and vim.trim(view.stdout or "") or ""
+  if pr_base ~= "" then
+    local remote_ref = remote .. "/" .. pr_base
+    if ref_exists(M.remote_base_ref(pr_base, remote), root, deps) then
+      return remote_ref, nil
+    end
+    if ref_exists("refs/heads/" .. pr_base, root, deps) then
+      return pr_base, nil
+    end
+  end
+
+  local head = run({ "git", "symbolic-ref", "--short", "refs/remotes/" .. remote .. "/HEAD" }, root)
+  local default_ref = head.code == 0 and vim.trim(head.stdout or "") or ""
+  if default_ref ~= "" then
+    return default_ref, nil
+  end
+  return remote .. "/main", nil
+end
+
 function M.open(number, deps)
   deps = deps or {}
   local root, root_err = git_root(deps)
