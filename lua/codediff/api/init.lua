@@ -270,6 +270,74 @@ local function create_autocmds()
   })
 end
 
+local function git(git_root, args, stdin)
+  local result = vim.system(vim.list_extend({ "git", "-C", git_root }, args), { stdin = stdin }):wait()
+  return result.code == 0 and result.stdout or nil
+end
+
+-- The sources of the module that holds rel_path, at a revision, as extract
+-- takes them: { { path, text }, ... }, with absolute paths. revision is a
+-- commit, ":0" or "STAGED" for the index, or nil or "WORKING" for the files on
+-- disk. Returns nil if the language has no extractor, and an empty list if
+-- the module has no files at that revision.
+function M.module_sources(git_root, revision, rel_path, language)
+  local rel_dir = vim.fn.fnamemodify(rel_path, ":h")
+  local prefix = rel_dir == "." and "" or rel_dir .. "/"
+  local sources = {}
+
+  if revision == nil or revision == "WORKING" then
+    for _, file in ipairs(vim.fn.glob(git_root .. "/" .. prefix .. "*", false, true)) do
+      if language.in_package(file) and vim.fn.filereadable(file) == 1 then
+        sources[#sources + 1] = { path = file, text = table.concat(vim.fn.readfile(file), "\n") }
+      end
+    end
+    return sources
+  end
+
+  -- List the directory's blobs at the revision, then read them all in one
+  -- git cat-file call.
+  local listing
+  if revision == ":0" or revision == "STAGED" then
+    listing = git(git_root, { "ls-files", "-s", "--", prefix })
+  else
+    listing = git(git_root, { "ls-tree", revision, "--", prefix })
+  end
+  local blobs = {}
+  for line in (listing or ""):gmatch("[^\n]+") do
+    -- ls-files: "<mode> <sha> <stage>\t<path>", ls-tree: "<mode> blob <sha>\t<path>"
+    local meta, path = line:match("^(.-)\t(.+)$")
+    local sha = meta and meta:match("(%x%x%x%x%x%x%x+)")
+    if sha and path:find("/", #prefix + 1, true) == nil and language.in_package(path) then
+      blobs[#blobs + 1] = { sha = sha, path = path }
+    end
+  end
+  if #blobs == 0 then
+    return sources
+  end
+
+  local stdin = table.concat(
+    vim.tbl_map(function(blob)
+      return blob.sha
+    end, blobs),
+    "\n"
+  ) .. "\n"
+  local out = git(git_root, { "cat-file", "--batch" }, stdin) or ""
+  local pos = 1
+  for _, blob in ipairs(blobs) do
+    local header_end = out:find("\n", pos, true)
+    if not header_end then
+      break
+    end
+    local size = tonumber(out:sub(pos, header_end - 1):match(" (%d+)$"))
+    if not size then
+      break
+    end
+    sources[#sources + 1] = { path = git_root .. "/" .. blob.path, text = out:sub(header_end + 1, header_end + size) }
+    pos = header_end + size + 2
+  end
+  return sources
+end
+
 function M.comments_shown()
   return comments
 end

@@ -178,12 +178,14 @@ Press `s` in a diff view to cycle the skeleton view through five states:
                   interfaces, enums and type declarations show in full.
                   Added files have no original version, so they use seams
                   only.
-  API             A diff of what the file exports, without bodies, as in
-                  |codediff-api|. Each side shows its own version's API.
+  API             A diff of what the file's module exports, without bodies,
+                  as in |codediff-api|. For Go the module is the file's
+                  package. Each side reads every file of the module at its
+                  own revision. Without git, it covers the file only.
                   `C` and `P` toggle comments and unexported declarations,
-                  as in an API view. A file that exports nothing skips this
-                  state with a message, unless unexported declarations are
-                  shown. Languages without an API view skip it too.
+                  as in an API view. A module that exports nothing skips
+                  this state with a message, unless unexported declarations
+                  are shown. Languages without an API view skip it too.
   current file    The file as it is now, in one pane, without diff markup.
                   From side-by-side, this switches to the inline layout and
                   back when you cycle on.

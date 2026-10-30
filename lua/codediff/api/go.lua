@@ -373,18 +373,20 @@ local function strip_markers(lines, items)
   return out, targets
 end
 
+-- Whether a file name belongs in a package's view: a non-test Go file.
+function M.in_package(name)
+  return name:match("%.go$") ~= nil and not name:match("_test%.go$")
+end
+
 -- The files that make up the view of path's package, and the view's name: the
 -- package's non-test files and its directory. Returns nil for a test file,
 -- which belongs to no view.
 function M.files(path)
-  if path:match("_test%.go$") then
+  if not M.in_package(path) then
     return nil
   end
   local dir = vim.fn.fnamemodify(path, ":p:h")
-  local files = vim.tbl_filter(function(file)
-    return not file:match("_test%.go$")
-  end, vim.fn.glob(dir .. "/*.go", false, true))
-  return files, dir
+  return vim.tbl_filter(M.in_package, vim.fn.glob(dir .. "/*.go", false, true)), dir
 end
 
 -- The API view of a package's sources, given as { { path, text }, ... }.

@@ -1,7 +1,7 @@
 -- Structural diff views. Seams mode folds implementation bodies. Focused
 -- mode also removes unchanged seams and implementation-only changes, leaving
--- changed signatures and data declarations. API mode diffs what the file
--- exports, without bodies. File mode shows the file as it is now: one pane,
+-- changed signatures and data declarations. API mode diffs what the file's
+-- module exports, without bodies. File mode shows the file as it is now: one pane,
 -- no diff markup.
 local M = {}
 
@@ -685,20 +685,44 @@ local function enable_api(session, tabpage, silent)
     return false
   end
 
-  -- Each side's API, from the buffer's text. A side without a file, such as
-  -- the old side of an added file, has none.
-  local function api_lines(buf, path)
-    if not (buf and vim.api.nvim_buf_is_valid(buf)) or not path or path == "" then
-      return {}
+  local opts = { comments = api.comments_shown(), private = api.private_shown() }
+  local function relative(path)
+    if not path or path == "" then
+      return nil
     end
-    local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-    return language.extract({ { path = path, text = text } }, { comments = api.comments_shown(), private = api.private_shown() }) or {}
+    if session.git_root and path:sub(1, #session.git_root + 1) == session.git_root .. "/" then
+      return path:sub(#session.git_root + 2)
+    end
+    return path
   end
-  local original_lines = api_lines(original_buf, session.original_path)
-  local modified_lines = api_lines(modified_buf, session.modified_path)
+  local rel_path = relative(session.modified_path) or relative(session.original_path)
+
+  local original_lines, modified_lines, scope
+  if session.git_root and rel_path then
+    -- The whole module on each side, at that side's revision.
+    scope = "module"
+    local function module_lines(revision)
+      return language.extract(api.module_sources(session.git_root, revision, rel_path, language), opts) or {}
+    end
+    original_lines = module_lines(session.original_revision)
+    modified_lines = module_lines(session.modified_revision)
+  else
+    -- Without git, each side's API comes from its buffer's text. A side
+    -- without a file, such as the old side of an added file, has none.
+    scope = "file"
+    local function buffer_lines(buf, path)
+      if not (buf and vim.api.nvim_buf_is_valid(buf)) or not path or path == "" then
+        return {}
+      end
+      local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+      return language.extract({ { path = path, text = text } }, opts) or {}
+    end
+    original_lines = buffer_lines(original_buf, session.original_path)
+    modified_lines = buffer_lines(modified_buf, session.modified_path)
+  end
   -- Said even when silent, because the cycle skips this state without a word otherwise.
   if #original_lines == 0 and #modified_lines == 0 then
-    vim.notify("Skeleton view: this file exports nothing, so API is skipped. :Api private adds unexported declarations", vim.log.levels.INFO)
+    vim.notify(string.format("Skeleton view: this %s exports nothing, so API is skipped. :Api private adds unexported declarations", scope), vim.log.levels.INFO)
     return false
   end
 
@@ -709,7 +733,7 @@ local function enable_api(session, tabpage, silent)
   })
 
   if #diff_result.changes == 0 then
-    vim.notify("Skeleton view: this file's API did not change", vim.log.levels.INFO)
+    vim.notify(string.format("Skeleton view: this %s's API did not change", scope), vim.log.levels.INFO)
   end
 
   local swapped = {}
