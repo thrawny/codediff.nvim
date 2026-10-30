@@ -146,3 +146,21 @@ end, {
   complete = complete_codediff,
   desc = "VSCode-style diff view: :CodeDiff [<revision>] | merge <file> | file <revision>",
 })
+
+vim.api.nvim_create_user_command("Api", function(opts)
+  if opts.args == "toggle" then
+    require("codediff.api").toggle()
+  else
+    require("codediff.api").open(opts.args)
+  end
+end, {
+  nargs = "?",
+  complete = function(arg_lead)
+    local candidates = vim.fn.getcompletion(arg_lead, "file")
+    if ("toggle"):find(arg_lead, 1, true) == 1 then
+      table.insert(candidates, 1, "toggle")
+    end
+    return candidates
+  end,
+  desc = "Show a module's exported API: :Api [<path>] | toggle",
+})

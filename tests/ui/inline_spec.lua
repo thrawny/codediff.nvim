@@ -141,8 +141,9 @@ describe("Inline Diff Rendering", function()
   it("applies character-level highlights for inner changes", function()
     local buf = vim.api.nvim_create_buf(false, true)
 
-    local original = { "hello world" }
-    local modified = { "hello earth" }
+    -- A small edit in a long line, so the hunk keeps its character highlights.
+    local original = { "hello world, from the inline renderer" }
+    local modified = { "hello earth, from the inline renderer" }
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, modified)
 
@@ -161,6 +162,31 @@ describe("Inline Diff Rendering", function()
     end
 
     assert.is_true(has_char_insert, "Should have character-level insert highlight")
+
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
+  it("drops character highlights on a mostly rewritten hunk", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+
+    local original = { "local alpha = compute(first)" }
+    local modified = { "return beta.render(second)" }
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, modified)
+
+    local lines_diff = diff.compute_diff(original, modified)
+    inline.render_inline_diff(buf, lines_diff, original, modified)
+
+    local marks = vim.api.nvim_buf_get_extmarks(buf, inline.ns_inline, 0, -1, { details = true })
+    for _, mark in ipairs(marks) do
+      local details = mark[4]
+      assert.are_not.equal("CodeDiffCharInsert", details.hl_group)
+      for _, virt_line in ipairs(details.virt_lines or {}) do
+        for _, chunk in ipairs(virt_line) do
+          assert.are_not.equal("CodeDiffCharDelete", chunk[2])
+        end
+      end
+    end
 
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
@@ -271,8 +297,9 @@ describe("Inline Diff Rendering", function()
   it("virtual lines contain char-level delete highlights as separate chunks", function()
     local buf = vim.api.nvim_create_buf(false, true)
 
-    local original = { "hello world" }
-    local modified = { "hello earth" }
+    -- A small edit in a long line, so the hunk keeps its character highlights.
+    local original = { "hello world, from the inline renderer" }
+    local modified = { "hello earth, from the inline renderer" }
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, modified)
 

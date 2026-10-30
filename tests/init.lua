@@ -36,7 +36,7 @@ local function has_parser(lang)
 end
 
 local missing_parsers = {}
-for _, lang in ipairs({ "javascript", "typescript", "tsx" }) do
+for _, lang in ipairs({ "javascript", "typescript", "tsx", "go" }) do
   if not has_parser(lang) then
     table.insert(missing_parsers, lang)
   end

@@ -22,6 +22,10 @@ COMMANDS                                                  *codediff-commands*
 :CodeReview [subcommand] (also :Review)
     Open a read-only review session. See |codediff-review|.
 
+:Api [path]
+:Api toggle
+    Show what a module exports, or toggle browse mode. See |codediff-api|.
+
 ==============================================================================
 USAGE                                                       *codediff-usage*
 
@@ -179,6 +183,34 @@ Files without a Tree-sitter parser skip the two seam states. The skeleton
 view works in both layouts and stays on when you switch files.
 
 ==============================================================================
+API VIEW                                                      *codediff-api*
+
+The API view shows what a module exports, without any bodies, in a read-only
+buffer. Go is the only language so far. A Go view covers a package: its
+exported consts, vars and functions, and its exported types with their
+exported fields and methods. Test files are left out.
+
+:Api [path]     Open the API view of the current file's module, or of
+                [path], in a vertical split. [path] can be a file or a
+                directory.
+:Api toggle     Toggle browse mode. With browse mode on, a source file opened
+                in a window shows its module's API view instead, with the
+                cursor on the nearest declaration. Floating windows, diff
+                windows and CodeDiff tabs keep the real file. Turning browse
+                mode off switches each API view back to its source.
+
+In an API view:
+
+  <CR>    Open the source of the line under the cursor. The window keeps the
+          real file until you open another file.
+  gd      Ask the language server (gopls for Go) for the definition of the
+          word under the cursor. An exported definition opens in its
+          module's API view, anything else in its source file.
+
+The view is built from the files on disk each time it is shown. It does not
+update while you edit.
+
+==============================================================================
 CONFIGURATION                                        *codediff-configuration*
 
                                                       *codediff-layout*
@@ -246,6 +278,7 @@ Setup entry point:
       char_insert = nil,
       char_delete = nil,
       char_brightness = nil,
+      char_max_changed = 0.4, -- line highlights only above this changed share
       conflict_sign = nil,
       conflict_sign_resolved = nil,
       conflict_sign_accepted = nil,

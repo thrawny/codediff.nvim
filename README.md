@@ -40,6 +40,8 @@ With lazy.nvim:
 :CodeDiff history %         " commits that touched the current file
 :Review branch              " review this branch against its PR base
 :Review pr 123              " review a GitHub PR
+:Api                        " what the current Go package exports
+:Api toggle                 " open Go files as their package's API view
 ```
 
 In a diff, `]c`/`[c` move between changes, `t` switches layout, `s` cycles the skeleton view and `g?` lists every keymap.
