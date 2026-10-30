@@ -1014,8 +1014,9 @@ end
 
 local MODE_NAMES = { seams = "seams only", focused = "focused seams", api = "API", file = "current file" }
 
----Cycle the view mode: off → seams only → focused seams → API → current file → off.
----Modes that need a treesitter parser or an API extractor are skipped when there is none.
+---Cycle the view mode: off → API → current file → off. Seams and focused
+---seams stay available through M.enable, outside the cycle. API is skipped
+---for a file without an API extractor, or whose module exports nothing.
 function M.cycle(tabpage)
   tabpage = tabpage or vim.api.nvim_get_current_tabpage()
   local session = lifecycle.get_session(tabpage)
@@ -1030,7 +1031,7 @@ function M.cycle(tabpage)
     return
   end
 
-  local order = { "seams", "focused", "api", "file" }
+  local order = { "api", "file" }
   local start = 1
   for i, mode in ipairs(order) do
     if mode == current then

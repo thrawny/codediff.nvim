@@ -168,16 +168,9 @@ lists the options and their defaults.
 ==============================================================================
 SKELETON VIEW                                             *codediff-skeleton*
 
-Press `s` in a diff view to cycle the skeleton view through five states:
+Press `s` in a diff view to cycle the skeleton view through three states:
 
   off             The normal diff.
-  seams only      Folds function bodies. Signatures and declarations stay
-                  visible.
-  focused seams   Hides implementation and import changes. Shows changed
-                  signatures and top-level declarations. Changed structs,
-                  interfaces, enums and type declarations show in full.
-                  Added files have no original version, so they use seams
-                  only.
   API             A diff of what the file's module exports, without bodies,
                   as in |codediff-api|. For Go the module is the file's
                   package. Each side reads every file of the module at its
@@ -193,8 +186,7 @@ Press `s` in a diff view to cycle the skeleton view through five states:
                   From side-by-side, this switches to the inline layout and
                   back when you cycle on.
 
-Files without a Tree-sitter parser skip the two seam states. The skeleton
-view works in both layouts and stays on when you switch files.
+The skeleton view works in both layouts and stays on when you switch files.
 
 ==============================================================================
 API VIEW                                                      *codediff-api*

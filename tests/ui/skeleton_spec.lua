@@ -393,8 +393,9 @@ describe("skeleton view toggle (integration)", function()
     )
   end)
 
-  it("cycle steps off → seams → focused → file → off", function()
-    -- Inline, so file mode needs no layout switch
+  it("cycle steps off → file → off when there is no API view", function()
+    -- Inline, so file mode needs no layout switch. Lua has no API view, so
+    -- the cycle skips API.
     local session = session_mod.get_active_diffs()[tabpage]
     session.layout = "inline"
     session.original_win = mod_win
@@ -402,21 +403,7 @@ describe("skeleton view toggle (integration)", function()
 
     skeleton.cycle(tabpage)
     assert.is_true(skeleton.is_active(tabpage))
-    assert.equals("seams", session.skeleton_want)
-
-    skeleton.cycle(tabpage)
-    assert.is_true(skeleton.is_active(tabpage))
-    assert.equals("focused", session.skeleton_want)
-
-    skeleton.cycle(tabpage)
-    assert.is_true(skeleton.is_active(tabpage))
     assert.equals("file", session.skeleton_want)
-    assert.equals(
-      -1,
-      vim.api.nvim_win_call(mod_win, function()
-        return vim.fn.foldclosed(5)
-      end)
-    )
 
     skeleton.cycle(tabpage)
     assert.is_false(skeleton.is_active(tabpage))
@@ -740,11 +727,10 @@ describe("skeleton API mode", function()
     assert.equals(orig_buf, vim.api.nvim_win_get_buf(orig_win))
   end)
 
-  it("cycle steps focused → API → file", function()
+  it("cycle steps off → API → file", function()
     local session = session_mod.get_active_diffs()[tabpage]
     session.layout = "inline"
     session.original_win = mod_win
-    session.skeleton_want = "focused"
 
     skeleton.cycle(tabpage)
     assert.equals("api", session.skeleton_want)
