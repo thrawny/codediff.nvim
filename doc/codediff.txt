@@ -182,6 +182,9 @@ Press `s` in a diff view to cycle the skeleton view through five states:
                   as in |codediff-api|. For Go the module is the file's
                   package. Each side reads every file of the module at its
                   own revision. Without git, it covers the file only.
+                  Hunk navigation follows the API diff. Past the module's
+                  last hunk, next hunk or file goes to the next module,
+                  while next file still steps file by file.
                   `C` and `P` toggle comments and unexported declarations,
                   as in an API view. A module that exports nothing skips
                   this state with a message, unless unexported declarations

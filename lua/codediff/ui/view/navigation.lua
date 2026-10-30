@@ -160,7 +160,7 @@ function M.prev_hunk()
   end
 end
 
-local function navigate_file(direction, tabpage)
+local function navigate_file(direction, tabpage, skip)
   local session = lifecycle.get_session(tabpage)
   local panel_obj = lifecycle.get_explorer(tabpage)
 
@@ -188,9 +188,9 @@ local function navigate_file(direction, tabpage)
   else
     local explorer = require("codediff.ui.explorer")
     if direction == "next" then
-      explorer.navigate_next(panel_obj)
+      explorer.navigate_next(panel_obj, skip)
     else
-      explorer.navigate_prev(panel_obj)
+      explorer.navigate_prev(panel_obj, skip)
     end
   end
 
@@ -245,7 +245,9 @@ local function navigate_hunk_or_file(direction, tabpage, queue_if_pending)
     return true
   end
 
-  return navigate_file(direction, tabpage)
+  -- The API state shows the same module diff for every file of the module,
+  -- so moving past its last hunk goes to the next module.
+  return navigate_file(direction, tabpage, skeleton.same_api_module(session))
 end
 
 function M.next_hunk_or_file()

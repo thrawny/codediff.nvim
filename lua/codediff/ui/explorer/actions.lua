@@ -19,8 +19,26 @@ local function find_node_line(explorer, path, group)
   return nil
 end
 
--- Navigate to next file in explorer
-function M.navigate_next(explorer)
+-- Step from index through all_files in direction (1 or -1), past files that
+-- skip(file.data) is true for. Returns the index, or nil when the walk hits
+-- the end without cycling, or comes back around.
+local function step_past(all_files, index, direction, skip)
+  for _ = 1, #all_files do
+    if not skip(all_files[index].data) then
+      return index
+    end
+    local at_end = direction == 1 and index >= #all_files or direction == -1 and index <= 1
+    if at_end and not config.options.diff.cycle_next_file then
+      return nil
+    end
+    index = (index - 1 + direction) % #all_files + 1
+  end
+  return nil
+end
+
+-- Navigate to next file in explorer. skip(file_data), if given, passes over
+-- files it returns true for.
+function M.navigate_next(explorer, skip)
   local all_files = refresh_module.get_all_files(explorer.tree)
   if #all_files == 0 then
     vim.notify("No files in explorer", vim.log.levels.WARN)
@@ -55,6 +73,13 @@ function M.navigate_next(explorer)
     vim.api.nvim_echo({}, false, {})
   end
   local next_index = current_index % #all_files + 1
+  if skip then
+    next_index = step_past(all_files, next_index, 1, skip)
+    if not next_index or next_index == current_index then
+      vim.api.nvim_echo({ { "Last file", "WarningMsg" } }, false, {})
+      return
+    end
+  end
   local next_file = all_files[next_index]
 
   -- Update tree selection visually (switch to explorer window temporarily)
@@ -72,8 +97,9 @@ function M.navigate_next(explorer)
   explorer.on_file_select(next_file.data)
 end
 
--- Navigate to previous file in explorer
-function M.navigate_prev(explorer)
+-- Navigate to previous file in explorer. skip(file_data), if given, passes
+-- over files it returns true for.
+function M.navigate_prev(explorer, skip)
   local all_files = refresh_module.get_all_files(explorer.tree)
   if #all_files == 0 then
     vim.notify("No files in explorer", vim.log.levels.WARN)
@@ -112,6 +138,13 @@ function M.navigate_prev(explorer)
     prev_index = #all_files + prev_index
   end
   prev_index = prev_index % #all_files + 1
+  if skip then
+    prev_index = step_past(all_files, prev_index, -1, skip)
+    if not prev_index or prev_index == current_index then
+      vim.api.nvim_echo({ { "First file", "WarningMsg" } }, false, {})
+      return
+    end
+  end
   local prev_file = all_files[prev_index]
 
   -- Update tree selection visually (switch to explorer window temporarily)

@@ -779,6 +779,22 @@ describe("skeleton API mode", function()
     assert.equals(session.stored_diff_result, skeleton.active_diff(session))
   end)
 
+  it("marks files of the shown module for hunk-or-file navigation", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.git_root = vim.fn.tempname()
+    session.original_path = "shop/shop.go"
+    session.modified_path = session.git_root .. "/shop/shop.go"
+    session.modified_revision = "HEAD"
+    assert.is_nil(skeleton.same_api_module(session))
+    -- Without files at the revisions the module exports nothing, so give the
+    -- state a module by hand.
+    session.skeleton = { api_module = { language = require("codediff.api.go"), key = "shop" } }
+    local same = skeleton.same_api_module(session)
+    assert.is_true(same({ path = "shop/other.go" }))
+    assert.is_false(same({ path = "cart/cart.go" }))
+    session.skeleton = nil
+  end)
+
   it("is skipped for a language without an API view", function()
     vim.bo[mod_buf].filetype = "lua"
     assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))

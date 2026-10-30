@@ -677,6 +677,18 @@ function M.active_diff(session)
   return session.skeleton and session.skeleton.api_diff or session.stored_diff_result
 end
 
+---While the API state shows a whole module, a predicate that is true for an
+---explorer file of that module. Else nil.
+function M.same_api_module(session)
+  local module = session.skeleton and session.skeleton.api_module
+  if not module then
+    return nil
+  end
+  return function(file_data)
+    return file_data.path ~= nil and module.language.module_of(file_data.path) == module.key
+  end
+end
+
 ---Which API buffer, if any, buf is: "original", "modified" or nil.
 function M.api_side(session, buf)
   local bufs = session.skeleton and session.skeleton.api_bufs
@@ -788,7 +800,15 @@ local function enable_api(session, tabpage, silent)
     require("codediff.ui.inline").render_inline_diff(buf, diff_result, original_lines, modified_lines, { filetype = filetype })
   end
 
-  session.skeleton = { saved = {}, mode = "api", spacer_bufs = {}, swapped = swapped, api_diff = diff_result, api_bufs = api_bufs }
+  session.skeleton = {
+    saved = {},
+    mode = "api",
+    spacer_bufs = {},
+    swapped = swapped,
+    api_diff = diff_result,
+    api_bufs = api_bufs,
+    api_module = scope == "module" and { language = language, key = language.module_of(rel_path) } or nil,
+  }
   return true
 end
 

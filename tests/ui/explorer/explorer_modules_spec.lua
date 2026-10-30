@@ -77,3 +77,65 @@ describe("Explorer submodules", function()
     end)
   end)
 end)
+
+describe("explorer file navigation with a skip", function()
+  local actions = require("codediff.ui.explorer.actions")
+  local refresh = require("codediff.ui.explorer.refresh")
+  local config = require("codediff.config")
+  local original_get_all_files, original_cycle
+
+  local paths = { "shop/a.go", "shop/b.go", "other/c.go" }
+
+  before_each(function()
+    original_get_all_files = refresh.get_all_files
+    original_cycle = config.options.diff.cycle_next_file
+    refresh.get_all_files = function()
+      return vim.tbl_map(function(path)
+        return { data = { path = path, group = "unstaged" } }
+      end, paths)
+    end
+  end)
+
+  after_each(function()
+    refresh.get_all_files = original_get_all_files
+    config.options.diff.cycle_next_file = original_cycle
+  end)
+
+  local function step(fn, from, skip)
+    local selected
+    local explorer = {
+      tree = {},
+      winid = -1,
+      current_file_path = from,
+      current_file_group = "unstaged",
+      on_file_select = function(data)
+        selected = data.path
+      end,
+    }
+    fn(explorer, skip)
+    return selected
+  end
+
+  local function in_shop(data)
+    return data.path:match("^shop/") ~= nil
+  end
+
+  it("passes over skipped files in both directions", function()
+    config.options.diff.cycle_next_file = true
+    assert.equals("other/c.go", step(actions.navigate_next, "shop/a.go", in_shop))
+    assert.equals("other/c.go", step(actions.navigate_prev, "shop/b.go", in_shop))
+  end)
+
+  it("stops at the end when every file left is skipped and cycling is off", function()
+    config.options.diff.cycle_next_file = false
+    paths = { "other/c.go", "shop/a.go", "shop/b.go" }
+    assert.is_nil(step(actions.navigate_next, "shop/a.go", in_shop))
+    paths = { "shop/a.go", "shop/b.go", "other/c.go" }
+  end)
+
+  it("steps file by file without a skip", function()
+    config.options.diff.cycle_next_file = true
+    assert.equals("shop/b.go", step(actions.navigate_next, "shop/a.go"))
+    assert.equals("shop/a.go", step(actions.navigate_prev, "shop/b.go"))
+  end)
+end)
