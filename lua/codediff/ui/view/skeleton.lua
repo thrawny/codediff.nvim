@@ -1,7 +1,8 @@
 -- Structural diff views. Seams mode folds implementation bodies. Focused
 -- mode also removes unchanged seams and implementation-only changes, leaving
--- changed signatures and data declarations. File mode shows the file as it
--- is now: one pane, no diff markup.
+-- changed signatures and data declarations. API mode diffs what the file
+-- exports, without bodies. File mode shows the file as it is now: one pane,
+-- no diff markup.
 local M = {}
 
 local lifecycle = require("codediff.ui.lifecycle")
@@ -338,6 +339,15 @@ local function restore_window(win, opts)
   end
 end
 
+-- Put back the diff buffers that API mode replaced, where an API buffer still shows.
+local function restore_api(state)
+  for win, buf in pairs(state.swapped or {}) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_buf_is_valid(buf) and vim.b[vim.api.nvim_win_get_buf(win)].codediff_api then
+      vim.api.nvim_win_set_buf(win, buf)
+    end
+  end
+end
+
 local SPACER_TEXT = string.rep(" ", 500)
 local SPACER_HL = "CodeDiffSkeletonSpacer"
 
@@ -510,6 +520,7 @@ function M.reset(tabpage)
       restore_window(win, opts)
     end
     clear_spacers(session.skeleton)
+    restore_api(session.skeleton)
     session.skeleton = nil
   end
 end
@@ -625,6 +636,112 @@ local function enable_side_by_side(session, diff_result, tabpage, mode, silent)
   return true
 end
 
+-- ============================================================================
+-- API mode: a diff of what the file exports, without bodies
+-- ============================================================================
+
+-- A scratch buffer for one side of the API diff. The codediff:// name tells the
+-- working-file sync that no user opened it. It is wiped once it leaves its window.
+local function api_buffer(side, lines, filetype)
+  local buf = vim.api.nvim_create_buf(false, true)
+  pcall(vim.api.nvim_buf_set_name, buf, "codediff://api/" .. side .. "/" .. buf)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.b[buf].codediff_api = true
+  vim.b[buf].codediff_filetype = filetype
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  pcall(vim.treesitter.start, buf, vim.treesitter.language.get_lang(filetype) or filetype)
+  return buf
+end
+
+-- Copy the diff view's buffer keymaps, so s and file navigation keep working.
+local function copy_keymaps(from, to)
+  if not (from and vim.api.nvim_buf_is_valid(from)) then
+    return
+  end
+  for _, map in ipairs(vim.api.nvim_buf_get_keymap(from, "n")) do
+    vim.keymap.set("n", map.lhs, map.callback or map.rhs or "", {
+      buffer = to,
+      desc = map.desc,
+      expr = map.expr == 1,
+      noremap = map.noremap == 1,
+      nowait = map.nowait == 1,
+      silent = map.silent == 1,
+    })
+  end
+end
+
+local function enable_api(session, tabpage, silent)
+  local original_buf, modified_buf = session.original_bufnr, session.modified_bufnr
+  if not (modified_buf and vim.api.nvim_buf_is_valid(modified_buf)) then
+    notify(silent, "Skeleton view: no valid diff buffer", vim.log.levels.WARN)
+    return false
+  end
+  local filetype = vim.b[modified_buf].codediff_filetype or vim.bo[modified_buf].filetype
+  local api = require("codediff.api")
+  local language = api.language_for_filetype(filetype)
+  if not language then
+    notify(silent, string.format("Skeleton view: no API view for '%s'", filetype), vim.log.levels.WARN)
+    return false
+  end
+
+  -- Each side's API, from the buffer's text. A side without a file, such as
+  -- the old side of an added file, has none.
+  local function api_lines(buf, path)
+    if not (buf and vim.api.nvim_buf_is_valid(buf)) or not path or path == "" then
+      return {}
+    end
+    local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+    return language.extract({ { path = path, text = text } }, { comments = api.comments_shown() }) or {}
+  end
+  local original_lines = api_lines(original_buf, session.original_path)
+  local modified_lines = api_lines(modified_buf, session.modified_path)
+  if #original_lines == 0 and #modified_lines == 0 then
+    notify(silent, "Skeleton view: this file exports nothing", vim.log.levels.INFO)
+    return false
+  end
+
+  local diff_result = require("codediff.core.diff").compute_diff(original_lines, modified_lines, {
+    max_computation_time_ms = config.options.diff.max_computation_time_ms,
+    ignore_whitespace = config.options.diff.ignore_whitespace,
+    ignore_trim_whitespace = config.options.diff.ignore_trim_whitespace,
+  })
+
+  local swapped = {}
+  local function show(win, side, lines, keymap_source)
+    local buf = api_buffer(side, lines, filetype)
+    copy_keymaps(keymap_source, buf)
+    swapped[win] = vim.api.nvim_win_get_buf(win)
+    vim.api.nvim_win_set_buf(win, buf)
+    vim.api.nvim_win_set_cursor(win, { 1, 0 })
+    return buf
+  end
+
+  local original_win, modified_win = lifecycle.get_windows(tabpage)
+  local two_panes = session.layout ~= "inline"
+    and not session.single_pane
+    and original_win
+    and vim.api.nvim_win_is_valid(original_win)
+    and modified_win
+    and vim.api.nvim_win_is_valid(modified_win)
+  if two_panes then
+    local left = show(original_win, "original", original_lines, original_buf)
+    local right = show(modified_win, "modified", modified_lines, modified_buf)
+    require("codediff.ui.core").render_diff(left, right, original_lines, modified_lines, diff_result)
+  else
+    local win = session.modified_win
+    if not (win and vim.api.nvim_win_is_valid(win)) then
+      notify(silent, "Skeleton view: no valid diff window", vim.log.levels.WARN)
+      return false
+    end
+    local buf = show(win, "modified", modified_lines, modified_buf)
+    require("codediff.ui.inline").render_inline_diff(buf, diff_result, original_lines, modified_lines, { filetype = filetype })
+  end
+
+  session.skeleton = { saved = {}, mode = "api", spacer_bufs = {}, swapped = swapped }
+  return true
+end
+
 ---Switch layout on behalf of file mode. The switch re-renders the current
 ---file; the render hook then applies file mode to the new layout.
 local function switch_layout(session, tabpage)
@@ -715,13 +832,23 @@ local function reveal_cursor(session)
 end
 
 ---@param tabpage number
----@param opts? { mode?: "seams"|"focused"|"file", silent?: boolean } silent suppresses notifications (auto re-apply)
+---@param opts? { mode?: "seams"|"focused"|"api"|"file", silent?: boolean } silent suppresses notifications (auto re-apply)
 function M.enable(tabpage, opts)
   local silent = opts ~= nil and opts.silent == true
   local requested_mode = (opts and opts.mode) or "seams"
   local session = lifecycle.get_session(tabpage)
   if not session then
     return false
+  end
+
+  if requested_mode == "api" then
+    if not enable_api(session, tabpage, silent) then
+      return false
+    end
+    session.skeleton_path = session.modified_path
+    session.skeleton_want = "api"
+    ensure_autocmds()
+    return true
   end
 
   if requested_mode == "file" then
@@ -795,6 +922,7 @@ function M.disable(tabpage)
       restore_window(win, opts)
     end
     clear_spacers(session.skeleton)
+    restore_api(session.skeleton)
     session.skeleton = nil
   end
   if was_file then
@@ -814,10 +942,10 @@ function M.on_layout_toggle(tabpage)
   end
 end
 
-local MODE_NAMES = { seams = "seams only", focused = "focused seams", file = "current file" }
+local MODE_NAMES = { seams = "seams only", focused = "focused seams", api = "API", file = "current file" }
 
----Cycle the view mode: off → seams only → focused seams → current file → off.
----Modes that need a treesitter parser are skipped when there is none.
+---Cycle the view mode: off → seams only → focused seams → API → current file → off.
+---Modes that need a treesitter parser or an API extractor are skipped when there is none.
 function M.cycle(tabpage)
   tabpage = tabpage or vim.api.nvim_get_current_tabpage()
   local session = lifecycle.get_session(tabpage)
@@ -832,8 +960,13 @@ function M.cycle(tabpage)
     return
   end
 
-  local order = { "seams", "focused", "file" }
-  local start = current == nil and 1 or current == "seams" and 2 or 3
+  local order = { "seams", "focused", "api", "file" }
+  local start = 1
+  for i, mode in ipairs(order) do
+    if mode == current then
+      start = i + 1
+    end
+  end
   M.reset(tabpage)
   for i = start, #order do
     if M.enable(tabpage, { mode = order[i], silent = order[i] ~= "file" }) then

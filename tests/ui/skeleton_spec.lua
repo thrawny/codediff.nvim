@@ -644,3 +644,117 @@ describe("skeleton view toggle (integration)", function()
     )
   end)
 end)
+
+describe("skeleton API mode", function()
+  local session_mod = require("codediff.ui.lifecycle.session")
+
+  local tabpage, orig_buf, mod_buf, orig_win, mod_win
+
+  local original_content = {
+    "package shop",
+    "",
+    "func New() *Server {",
+    "\treturn nil",
+    "}",
+    "",
+    "func helper() {}",
+  }
+  local modified_content = {
+    "package shop",
+    "",
+    "func New(name string) *Server {",
+    "\treturn nil",
+    "}",
+    "",
+    "func Close() {}",
+  }
+
+  before_each(function()
+    vim.cmd("tabnew")
+    tabpage = vim.api.nvim_get_current_tabpage()
+
+    orig_buf = vim.api.nvim_create_buf(false, true)
+    mod_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(orig_buf, 0, -1, false, original_content)
+    vim.api.nvim_buf_set_lines(mod_buf, 0, -1, false, modified_content)
+    vim.bo[orig_buf].filetype = "go"
+    vim.bo[mod_buf].filetype = "go"
+    vim.keymap.set("n", "s", "<Nop>", { buffer = mod_buf, desc = "skeleton" })
+
+    orig_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(orig_win, orig_buf)
+    vim.cmd("rightbelow vsplit")
+    mod_win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(mod_win, mod_buf)
+
+    session_mod.get_active_diffs()[tabpage] = {
+      mode = "standalone",
+      layout = "side-by-side",
+      original_bufnr = orig_buf,
+      modified_bufnr = mod_buf,
+      original_win = orig_win,
+      modified_win = mod_win,
+      original_path = "/p/shop.go",
+      modified_path = "/p/shop.go",
+      stored_diff_result = { changes = {} },
+    }
+  end)
+
+  after_each(function()
+    skeleton.disable(tabpage)
+    session_mod.get_active_diffs()[tabpage] = nil
+    while vim.fn.tabpagenr("$") > 1 do
+      vim.cmd("tabclose!")
+    end
+    for _, buf in ipairs({ orig_buf, mod_buf }) do
+      if buf and vim.api.nvim_buf_is_valid(buf) then
+        vim.api.nvim_buf_delete(buf, { force = true })
+      end
+    end
+  end)
+
+  local function lines_in(win)
+    return vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false)
+  end
+
+  it("shows each side's API in its pane, and disable puts the files back", function()
+    assert.is_true(skeleton.enable(tabpage, { mode = "api" }))
+    assert.are.same({ "package shop", "", "func New() *Server" }, lines_in(orig_win))
+    assert.are.same({ "package shop", "", "func New(name string) *Server", "func Close()" }, lines_in(mod_win))
+    -- The diff view's keymaps come along, so s keeps cycling.
+    assert.equals("skeleton", vim.fn.maparg("s", "n", false, true).desc)
+    local marks = vim.api.nvim_buf_get_extmarks(vim.api.nvim_win_get_buf(mod_win), -1, 0, -1, {})
+    assert.is_true(#marks > 0, "API diff should have highlights")
+
+    skeleton.disable(tabpage)
+    assert.equals(orig_buf, vim.api.nvim_win_get_buf(orig_win))
+    assert.equals(mod_buf, vim.api.nvim_win_get_buf(mod_win))
+  end)
+
+  it("shows the API diff inline in the modified pane", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.layout = "inline"
+    session.original_win = mod_win
+    assert.is_true(skeleton.enable(tabpage, { mode = "api" }))
+    assert.are.same({ "package shop", "", "func New(name string) *Server", "func Close()" }, lines_in(mod_win))
+    assert.equals(orig_buf, vim.api.nvim_win_get_buf(orig_win))
+  end)
+
+  it("cycle steps focused → API → file", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.layout = "inline"
+    session.original_win = mod_win
+    session.skeleton_want = "focused"
+
+    skeleton.cycle(tabpage)
+    assert.equals("api", session.skeleton_want)
+    skeleton.cycle(tabpage)
+    assert.equals("file", session.skeleton_want)
+    assert.equals(mod_buf, vim.api.nvim_win_get_buf(mod_win))
+  end)
+
+  it("is skipped for a language without an API view", function()
+    vim.bo[mod_buf].filetype = "lua"
+    assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))
+  end)
+end)

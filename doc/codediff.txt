@@ -167,7 +167,7 @@ lists the options and their defaults.
 ==============================================================================
 SKELETON VIEW                                             *codediff-skeleton*
 
-Press `s` in a diff view to cycle the skeleton view through four states:
+Press `s` in a diff view to cycle the skeleton view through five states:
 
   off             The normal diff.
   seams only      Folds function bodies. Signatures and declarations stay
@@ -177,6 +177,10 @@ Press `s` in a diff view to cycle the skeleton view through four states:
                   interfaces, enums and type declarations show in full.
                   Added files have no original version, so they use seams
                   only.
+  API             A diff of what the file exports, without bodies, as in
+                  |codediff-api|. Each side shows its own version's API.
+                  Comments follow `:Api comments`. Languages without an API
+                  view skip this state.
   current file    The file as it is now, in one pane, without diff markup.
                   From side-by-side, this switches to the inline layout and
                   back when you cycle on.

@@ -20,6 +20,11 @@ local views = {}
 -- Per view name, such as a Go package directory: its API buffer.
 local buffers = {}
 
+-- The language with an API extractor for a filetype, or nil.
+function M.language_for_filetype(filetype)
+  return languages[filetype or ""]
+end
+
 local function language_of(path)
   return languages[vim.filetype.match({ filename = path }) or ""]
 end
@@ -260,6 +265,10 @@ local function create_autocmds()
       views[args.buf] = nil
     end,
   })
+end
+
+function M.comments_shown()
+  return comments
 end
 
 -- Show or hide comments in every API view. Each shown view keeps its cursor on

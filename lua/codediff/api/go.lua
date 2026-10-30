@@ -297,10 +297,24 @@ local function render(api)
       add(item)
     end
   end
+  local type_names = {}
   for _, item in ipairs(api.types) do
+    type_names[item.name] = true
     blank()
     add(item)
     for _, method in ipairs(api.methods[item.name] or {}) do
+      add(method)
+    end
+  end
+  -- Methods whose type is in a file the view does not cover, such as when the
+  -- view covers one file of a package.
+  local owners = vim.tbl_filter(function(owner)
+    return not type_names[owner]
+  end, vim.tbl_keys(api.methods))
+  table.sort(owners)
+  for _, owner in ipairs(owners) do
+    blank()
+    for _, method in ipairs(api.methods[owner]) do
       add(method)
     end
   end
