@@ -153,6 +153,32 @@ describe("Go API view", function()
     assert.is_true(vim.tbl_contains(lines, "var errClosed = 1"))
   end)
 
+  it("leaves out comments inside a nested struct when asked", function()
+    local text = table.concat({
+      "package shop",
+      "",
+      "type Config struct {",
+      "\tAuth struct {",
+      "\t\t// Audience is the token's audience.",
+      "\t\tAudience string // inline",
+      "\t\t/* block */ Admins []string",
+      "\t}",
+      "}",
+    }, "\n")
+    local lines, targets = go.extract({ { path = "/p/c.go", text = text } }, { comments = false })
+    assert.are.same({
+      "package shop",
+      "",
+      "type Config struct {",
+      "\tAuth struct {",
+      "\t\tAudience string",
+      "\t\tAdmins   []string",
+      "\t}",
+      "}",
+    }, lines)
+    assert.are.same({ file = "/p/c.go", line = 7 }, targets[6])
+  end)
+
   it("returns nil for a package that exports nothing", function()
     assert.is_nil(go.extract({ { path = "/p/main.go", text = "package main\n\nfunc main() {}" } }))
   end)

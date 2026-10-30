@@ -105,6 +105,57 @@ local function doc_comment(node, src)
   return texts, lines
 end
 
+-- A node's text and the source line of each of its lines. With comments
+-- hidden, the comments inside the node are cut out, such as those in a nested
+-- struct, and the lines that leaves blank are dropped.
+local function text_and_lines(node, src)
+  local text = text_of(node, src)
+  if include_comments then
+    return text, node_lines(node, text)
+  end
+  local start_row, start_col = node:start()
+  local lines = vim.split(text, "\n")
+  -- Per line of text, the 1-based byte ranges to cut.
+  local cuts = {}
+  local function walk(parent)
+    for child in parent:iter_children() do
+      if child:type() == "comment" then
+        local sr, sc, er, ec = child:range()
+        for row = sr, er do
+          local i = row - start_row + 1
+          local offset = row == start_row and start_col or 0
+          cuts[i] = cuts[i] or {}
+          table.insert(cuts[i], {
+            row == sr and sc - offset + 1 or 1,
+            row == er and ec - offset or #lines[i],
+          })
+        end
+      else
+        walk(child)
+      end
+    end
+  end
+  walk(node)
+
+  local out, out_lines = {}, {}
+  for i, line in ipairs(lines) do
+    if cuts[i] then
+      table.sort(cuts[i], function(a, b)
+        return a[1] > b[1]
+      end)
+      for _, cut in ipairs(cuts[i]) do
+        line = line:sub(1, cut[1] - 1) .. line:sub(cut[2] + 1)
+      end
+      line = line:gsub("%s+$", "")
+    end
+    if not (cuts[i] and line:match("^%s*$")) then
+      out[#out + 1] = line
+      out_lines[#out_lines + 1] = start_row + i
+    end
+  end
+  return table.concat(out, "\n"), out_lines
+end
+
 -- A comment after a node on its last line, such as a struct field's comment.
 local function trailing_comment(node, src)
   if not include_comments then
@@ -138,7 +189,8 @@ local function type_text(spec, src)
   local text = "type " .. text_of(spec, src)
   local type_node = spec:field("type")[1]
   if not type_node then
-    return text, node_lines(spec, text)
+    local spec_text, lines = text_and_lines(spec, src)
+    return "type " .. spec_text, lines
   end
 
   local list, keep
@@ -153,14 +205,15 @@ local function type_text(spec, src)
       return member:named() and member:type() ~= "comment" and member_exported(member, src)
     end
   else
-    return text, node_lines(spec, text)
+    local spec_text, lines = text_and_lines(spec, src)
+    return "type " .. spec_text, lines
   end
 
   local members, lines = {}, {}
   for member in list:iter_children() do
     if keep(member) then
-      local member_text = text_of(member, src)
-      local text_with_doc, member_lines = with_doc(member, src, "\t" .. member_text .. trailing_comment(member, src), node_lines(member, member_text), "\t")
+      local member_text, member_source_lines = text_and_lines(member, src)
+      local text_with_doc, member_lines = with_doc(member, src, "\t" .. member_text .. trailing_comment(member, src), member_source_lines, "\t")
       members[#members + 1] = text_with_doc
       vim.list_extend(lines, member_lines)
     end
@@ -241,8 +294,7 @@ local function collect(sources)
         local kept, lines = {}, {}
         for _, spec in ipairs(specs) do
           if is_shown(field_name(spec, "name", src)) then
-            local spec_text = text_of(spec, src)
-            local spec_lines = node_lines(spec, spec_text)
+            local spec_text, spec_lines = text_and_lines(spec, src)
             if grouped then
               spec_text, spec_lines = with_doc(spec, src, "\t" .. spec_text .. trailing_comment(spec, src), spec_lines, "\t")
             end
