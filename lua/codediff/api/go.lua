@@ -75,6 +75,48 @@ local function node_lines(node, text)
   return lines
 end
 
+-- The doc comment right above a node: the run of comments that ends on the line
+-- before it, at the node's column. Returns its lines and their source lines, or
+-- empty lists.
+local function doc_comment(node, src)
+  local comments = {}
+  local row, col = node:start()
+  local prev = node:prev_sibling()
+  while prev and prev:type() == "comment" and prev:end_() == row - 1 and select(2, prev:start()) == col do
+    table.insert(comments, 1, prev)
+    row = prev:start()
+    prev = prev:prev_sibling()
+  end
+  local texts, lines = {}, {}
+  for _, comment in ipairs(comments) do
+    local text = text_of(comment, src):gsub("\n$", "")
+    vim.list_extend(texts, vim.split(text, "\n"))
+    vim.list_extend(lines, node_lines(comment, text))
+  end
+  return texts, lines
+end
+
+-- A comment after a node on its last line, such as a struct field's comment.
+local function trailing_comment(node, src)
+  local next = node:next_sibling()
+  if next and next:type() == "comment" and next:start() == node:end_() then
+    return " " .. text_of(next, src)
+  end
+  return ""
+end
+
+-- Prepend a node's doc comment to text and lines, indented by indent.
+local function with_doc(node, src, text, lines, indent)
+  local doc, doc_lines = doc_comment(node, src)
+  if #doc == 0 then
+    return text, lines
+  end
+  for i, line in ipairs(doc) do
+    doc[i] = indent .. line
+  end
+  return table.concat(doc, "\n") .. "\n" .. text, vim.list_extend(doc_lines, lines)
+end
+
 -- A type spec's text, with unexported struct fields and interface methods left
 -- out, and the source line of each of its lines.
 local function type_text(spec, src)
@@ -103,8 +145,9 @@ local function type_text(spec, src)
   for member in list:iter_children() do
     if keep(member) then
       local member_text = text_of(member, src)
-      members[#members + 1] = "\t" .. member_text
-      vim.list_extend(lines, node_lines(member, member_text))
+      local text_with_doc, member_lines = with_doc(member, src, "\t" .. member_text .. trailing_comment(member, src), node_lines(member, member_text), "\t")
+      members[#members + 1] = text_with_doc
+      vim.list_extend(lines, member_lines)
     end
   end
 
@@ -132,8 +175,8 @@ local function collect(sources)
     local file, src = source.path, source.text
     local root = vim.treesitter.get_string_parser(src, "go"):parse()[1]:root()
 
-    local function entry(text, node, lines)
-      return { text = text, file = file, line = node:start() + 1, lines = lines or node_lines(node, text) }
+    local function entry(text, lines)
+      return { text = text, file = file, line = lines[1], lines = lines }
     end
 
     for node in root:iter_children() do
@@ -142,19 +185,23 @@ local function collect(sources)
         api.package = api.package or text_of(node, src)
       elseif kind == "function_declaration" then
         if is_exported(field_name(node, "name", src)) then
-          api.funcs[#api.funcs + 1] = entry(signature(node, src), node)
+          local text = signature(node, src)
+          api.funcs[#api.funcs + 1] = entry(with_doc(node, src, text, node_lines(node, text), ""))
         end
       elseif kind == "method_declaration" then
         local owner = receiver_type(node, src)
         if is_exported(field_name(node, "name", src)) and is_exported(owner) then
           api.methods[owner] = api.methods[owner] or {}
-          table.insert(api.methods[owner], entry(signature(node, src), node))
+          local text = signature(node, src)
+          table.insert(api.methods[owner], entry(with_doc(node, src, text, node_lines(node, text), "")))
         end
       elseif kind == "type_declaration" then
         for spec in node:iter_children() do
           if (spec:type() == "type_spec" or spec:type() == "type_alias") and is_exported(field_name(spec, "name", src)) then
             local text, lines = type_text(spec, src)
-            local item = entry(text, spec, lines)
+            -- A grouped type's comment is above its spec, a single type's above the declaration.
+            local doc_node = spec:prev_sibling() and spec:prev_sibling():type() == "comment" and spec or node
+            local item = entry(with_doc(doc_node, src, text, lines, ""))
             item.name = field_name(spec, "name", src)
             api.types[#api.types + 1] = item
           end
@@ -180,18 +227,22 @@ local function collect(sources)
         for _, spec in ipairs(specs) do
           if is_exported(field_name(spec, "name", src)) then
             local spec_text = text_of(spec, src)
+            local spec_lines = node_lines(spec, spec_text)
+            if grouped then
+              spec_text, spec_lines = with_doc(spec, src, "\t" .. spec_text .. trailing_comment(spec, src), spec_lines, "\t")
+            end
             kept[#kept + 1] = spec_text
-            vim.list_extend(lines, node_lines(spec, spec_text))
+            vim.list_extend(lines, spec_lines)
           end
         end
         if #kept > 0 then
           local text = keyword .. " " .. kept[1]
           if grouped then
-            text = keyword .. " (\n\t" .. table.concat(kept, "\n\t") .. "\n)"
+            text = keyword .. " (\n" .. table.concat(kept, "\n") .. "\n)"
             table.insert(lines, 1, node:start() + 1)
             lines[#lines + 1] = node:end_() + 1
           end
-          api.values[#api.values + 1] = entry(text, node, lines)
+          api.values[#api.values + 1] = entry(with_doc(node, src, text, lines, ""))
         end
       end
     end
@@ -205,7 +256,9 @@ end
 
 -- Each item is preceded by a marker comment, so that after gofmt every line
 -- can still be traced to its source.
-local MARKER = "//goapi:"
+-- The space after // keeps gofmt from taking it for a directive, such as
+-- //go:generate, which it would move below the doc comment.
+local MARKER = "// codediff-api:"
 
 local function render(api)
   local lines, items = {}, {}
@@ -260,17 +313,20 @@ end
 
 -- Drop the marker comments, and map each remaining line to its item's source.
 -- gofmt puts a blank line before each marker. Drop it between items of one group,
--- such as a type and its methods.
+-- such as a type and its methods, unless either item has a doc comment.
 local function strip_markers(lines, items)
   local out, targets, current, offset, pending_blank = {}, {}, nil, 0, false
+  local current_documented = false
   for _, line in ipairs(lines) do
-    local index = line:match("^" .. MARKER .. "(%d+)$")
+    local index = line:match("^" .. vim.pesc(MARKER) .. "(%d+)$")
     if index then
       local item = items[tonumber(index)]
-      if pending_blank and not (current and current.group == item.group) then
+      local documented = item.text:match("^%s*//") ~= nil
+      local same_group = current and current.group == item.group
+      if pending_blank and (documented or current_documented or not same_group) then
         out[#out + 1] = ""
       end
-      pending_blank, current, offset = false, item, 0
+      pending_blank, current, offset, current_documented = false, item, 0, documented
     elseif line == "" then
       pending_blank = true
     else

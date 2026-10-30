@@ -185,10 +185,10 @@ view works in both layouts and stays on when you switch files.
 ==============================================================================
 API VIEW                                                      *codediff-api*
 
-The API view shows what a module exports, without any bodies, in a read-only
-buffer. Go is the only language so far. A Go view covers a package: its
-exported consts, vars and functions, and its exported types with their
-exported fields and methods. Test files are left out.
+The API view shows what a module exports, with doc comments and without any
+bodies, in a read-only buffer. Go is the only language so far. A Go view
+covers a package: its exported consts, vars and functions, and its exported
+types with their exported fields and methods. Test files are left out.
 
 :Api [path]     Open the API view of the current file's module, or of
                 [path], in a vertical split. [path] can be a file or a

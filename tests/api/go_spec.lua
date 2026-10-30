@@ -93,6 +93,44 @@ describe("Go API view", function()
     assert.are.same({ file = "/p/server.go", line = 16 }, target_of("func (s *Server) Start() error"))
   end)
 
+  it("keeps doc comments and field comments", function()
+    local text = table.concat({
+      "package shop",
+      "",
+      "// Server serves the shop.",
+      "type Server struct {",
+      "\t// Name is the shop's name.",
+      "\tName string // shown in the header",
+      "\t// port is not exported.",
+      "\tport int",
+      "}",
+      "",
+      "// Start starts the server.",
+      "func (s *Server) Start() error {",
+      "\treturn nil",
+      "}",
+      "",
+      "var x = 1 // not a doc comment",
+      "func New() *Server { return nil }",
+    }, "\n")
+    local lines, targets = go.extract({ { path = "/p/server.go", text = text } })
+    assert.are.same({
+      "package shop",
+      "",
+      "func New() *Server",
+      "",
+      "// Server serves the shop.",
+      "type Server struct {",
+      "\t// Name is the shop's name.",
+      "\tName string // shown in the header",
+      "}",
+      "",
+      "// Start starts the server.",
+      "func (s *Server) Start() error",
+    }, lines)
+    assert.are.same({ file = "/p/server.go", line = 5 }, targets[7])
+  end)
+
   it("returns nil for a package that exports nothing", function()
     assert.is_nil(go.extract({ { path = "/p/main.go", text = "package main\n\nfunc main() {}" } }))
   end)
