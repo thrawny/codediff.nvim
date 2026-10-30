@@ -325,7 +325,7 @@ function M.render_diff(left_bufnr, right_bufnr, original_lines, modified_lines, 
     table.insert(left_ranges, mapping.original)
     table.insert(right_ranges, mapping.modified)
 
-    if mapping.inner_changes then
+    if mapping.inner_changes and highlights.show_char_highlights(mapping, original_lines, modified_lines) then
       for _, inner in ipairs(mapping.inner_changes) do
         if not is_empty_range(inner.original) then
           apply_char_highlight(left_bufnr, inner.original, "CodeDiffCharDelete", original_lines)

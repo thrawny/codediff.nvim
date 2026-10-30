@@ -18,6 +18,10 @@ M.defaults = {
     -- Set explicit value to override: char_brightness = 1.2
     char_brightness = nil,
 
+    -- Show only line highlights for a hunk when more than this fraction of its
+    -- non-blank text changed. 1 always shows character highlights.
+    char_max_changed = 0.4,
+
     -- Conflict sign highlights (for merge conflict views)
     -- Accepts highlight group names (e.g., "DiagnosticWarn") or color values (e.g., "#f0883e")
     -- nil = use default fallback chain (GitSigns* -> DiagnosticSign* -> hardcoded colors)

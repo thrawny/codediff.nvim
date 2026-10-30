@@ -284,4 +284,71 @@ function M.changed_lines(ranges, lines)
   return sorted
 end
 
+-- An unchanged run shorter than this, between changes on one line, counts as
+-- changed. Short words such as "the" survive a rewrite by chance.
+local MIN_KEPT_RUN = 10
+
+-- Count the non-blank characters of one side of a hunk, and how many of them
+-- changed. Columns are treated as byte columns, which is close enough for a ratio.
+local function count_side(lines, line_range, ranges)
+  local changed_total, total = 0, 0
+  for line = line_range.start_line, line_range.end_line - 1 do
+    local text = lines[line] or ""
+    local changed = {}
+    for _, range in ipairs(ranges) do
+      if range.start_line <= line and range.end_line >= line then
+        local first = range.start_line == line and range.start_col or 1
+        local last = range.end_line == line and range.end_col - 1 or #text
+        for col = first, last do
+          changed[col] = true
+        end
+      end
+    end
+    -- Count short unchanged runs between two changes as changed.
+    local col = 1
+    while col <= #text do
+      local run_start = col
+      while col <= #text and not changed[col] do
+        col = col + 1
+      end
+      if run_start > 1 and col <= #text and col - run_start < MIN_KEPT_RUN then
+        for c = run_start, col - 1 do
+          changed[c] = true
+        end
+      end
+      while col <= #text and changed[col] do
+        col = col + 1
+      end
+    end
+    for c = 1, #text do
+      if text:sub(c, c):match("%S") then
+        total = total + 1
+        if changed[c] then
+          changed_total = changed_total + 1
+        end
+      end
+    end
+  end
+  return changed_total, total
+end
+
+-- Whether a hunk should get character-level highlights. A hunk where most text
+-- changed gets line highlights only, because highlighting nearly every word
+-- adds noise without showing what changed.
+function M.show_char_highlights(mapping, original_lines, modified_lines)
+  local max_changed = config.options.highlights.char_max_changed
+  if not max_changed or max_changed >= 1 or not mapping.inner_changes then
+    return true
+  end
+  local orig_ranges, mod_ranges = {}, {}
+  for _, inner in ipairs(mapping.inner_changes) do
+    table.insert(orig_ranges, inner.original)
+    table.insert(mod_ranges, inner.modified)
+  end
+  local orig_changed, orig_total = count_side(original_lines, mapping.original, orig_ranges)
+  local mod_changed, mod_total = count_side(modified_lines, mapping.modified, mod_ranges)
+  local total = orig_total + mod_total
+  return total == 0 or (orig_changed + mod_changed) / total <= max_changed
+end
+
 return M

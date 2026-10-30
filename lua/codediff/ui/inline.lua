@@ -405,12 +405,14 @@ function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines
     local has_modified = mod_count > 0
 
     -- Step 1: Show deleted/original lines as virtual lines
+    local inner_changes = highlights.show_char_highlights(mapping, original_lines, modified_lines) and mapping.inner_changes or nil
+
     if has_original then
       local virt_lines = {}
 
       for orig_line = orig_start, orig_end - 1 do
         local line_text = original_lines[orig_line] or ""
-        local char_ranges = get_char_ranges_for_orig_line(mapping.inner_changes, orig_line, original_lines)
+        local char_ranges = get_char_ranges_for_orig_line(inner_changes, orig_line, original_lines)
         local line_syntax = syntax_hls[orig_line]
         local chunks = build_highlighted_virt_line(line_text, char_ranges, line_syntax)
         table.insert(virt_lines, chunks)
@@ -440,8 +442,8 @@ function M.render_inline_diff(bufnr, diff_result, original_lines, modified_lines
     end
 
     -- Step 3: Character-level highlights on modified buffer lines
-    if has_modified and mapping.inner_changes then
-      apply_modified_char_highlights(bufnr, mapping.inner_changes, modified_lines)
+    if has_modified and inner_changes then
+      apply_modified_char_highlights(bufnr, inner_changes, modified_lines)
     end
   end
 
