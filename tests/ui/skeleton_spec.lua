@@ -763,6 +763,22 @@ describe("skeleton API mode", function()
     require("codediff.api").toggle_private()
   end)
 
+  it("hunk navigation follows the API diff", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    -- The file's own diff has a hunk on line 7, which the API buffer lacks.
+    session.stored_diff_result = { changes = { { original = { start_line = 7, end_line = 8 }, modified = { start_line = 7, end_line = 8 } } } }
+    assert.is_true(skeleton.enable(tabpage, { mode = "api" }))
+    vim.api.nvim_set_current_win(mod_win)
+    vim.api.nvim_win_set_cursor(mod_win, { 1, 0 })
+    local navigation = require("codediff.ui.view.navigation")
+    assert.is_true(navigation.next_hunk())
+    assert.equals(3, vim.api.nvim_win_get_cursor(mod_win)[1])
+    assert.equals("func New(name string) *Server", vim.api.nvim_get_current_line())
+
+    skeleton.disable(tabpage)
+    assert.equals(session.stored_diff_result, skeleton.active_diff(session))
+  end)
+
   it("is skipped for a language without an API view", function()
     vim.bo[mod_buf].filetype = "lua"
     assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))

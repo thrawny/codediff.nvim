@@ -671,6 +671,24 @@ local function copy_keymaps(from, to)
   end
 end
 
+---The diff that hunk navigation and the winbar follow: the API diff while the
+---API state shows, else the file's diff.
+function M.active_diff(session)
+  return session.skeleton and session.skeleton.api_diff or session.stored_diff_result
+end
+
+---Which API buffer, if any, buf is: "original", "modified" or nil.
+function M.api_side(session, buf)
+  local bufs = session.skeleton and session.skeleton.api_bufs
+  if bufs then
+    for side, api_buf in pairs(bufs) do
+      if api_buf == buf then
+        return side
+      end
+    end
+  end
+end
+
 local function enable_api(session, tabpage, silent)
   local original_buf, modified_buf = session.original_bufnr, session.modified_bufnr
   if not (modified_buf and vim.api.nvim_buf_is_valid(modified_buf)) then
@@ -736,9 +754,10 @@ local function enable_api(session, tabpage, silent)
     vim.notify(string.format("Skeleton view: this %s's API did not change", scope), vim.log.levels.INFO)
   end
 
-  local swapped = {}
+  local swapped, api_bufs = {}, {}
   local function show(win, side, lines, keymap_source)
     local buf = api_buffer(side, lines, filetype)
+    api_bufs[side] = buf
     copy_keymaps(keymap_source, buf)
     vim.keymap.set("n", "C", api.toggle_comments, { buffer = buf, desc = "Toggle comments in API views" })
     vim.keymap.set("n", "P", api.toggle_private, { buffer = buf, desc = "Toggle unexported declarations in API views" })
@@ -769,7 +788,7 @@ local function enable_api(session, tabpage, silent)
     require("codediff.ui.inline").render_inline_diff(buf, diff_result, original_lines, modified_lines, { filetype = filetype })
   end
 
-  session.skeleton = { saved = {}, mode = "api", spacer_bufs = {}, swapped = swapped }
+  session.skeleton = { saved = {}, mode = "api", spacer_bufs = {}, swapped = swapped, api_diff = diff_result, api_bufs = api_bufs }
   return true
 end
 

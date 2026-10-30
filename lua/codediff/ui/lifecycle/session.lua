@@ -78,7 +78,7 @@ local function build_winbar(sess, win)
   end
 
   if winbar_config.show_hunk_index ~= false then
-    local diff_result = sess.stored_diff_result
+    local diff_result = require("codediff.ui.view.skeleton").active_diff(sess)
     if diff_result and diff_result.changes and #diff_result.changes > 0 then
       local cursor = vim.api.nvim_win_get_cursor(win)[1]
       local line_count = vim.api.nvim_buf_line_count(vim.api.nvim_win_get_buf(win))

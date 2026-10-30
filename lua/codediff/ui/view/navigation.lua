@@ -4,6 +4,7 @@ local M = {}
 local lifecycle = require("codediff.ui.lifecycle")
 local config = require("codediff.config")
 local hunk_range = require("codediff.ui.hunk_range")
+local skeleton = require("codediff.ui.view.skeleton")
 
 local function echo_hunk_message(chunks)
   if not config.options.diff.show_hunk_navigation_message then
@@ -20,8 +21,9 @@ end
 
 local function get_hunk_target(session)
   local current_buf = vim.api.nvim_get_current_buf()
-  local is_original = current_buf == session.original_bufnr
-  local is_modified = current_buf == session.modified_bufnr
+  local api_side = skeleton.api_side(session, current_buf)
+  local is_original = current_buf == session.original_bufnr or api_side == "original"
+  local is_modified = current_buf == session.modified_bufnr or api_side == "modified"
   local is_result = session.result_bufnr and current_buf == session.result_bufnr
   local target_win = vim.api.nvim_get_current_win()
 
@@ -76,11 +78,10 @@ end
 function M.next_hunk()
   local tabpage = vim.api.nvim_get_current_tabpage()
   local session = lifecycle.get_session(tabpage)
-  if not session or not session.stored_diff_result then
+  local diff_result = session and skeleton.active_diff(session)
+  if not diff_result then
     return false
   end
-
-  local diff_result = session.stored_diff_result
   if not diff_result.changes or #diff_result.changes == 0 then
     return false
   end
@@ -121,11 +122,10 @@ end
 function M.prev_hunk()
   local tabpage = vim.api.nvim_get_current_tabpage()
   local session = lifecycle.get_session(tabpage)
-  if not session or not session.stored_diff_result then
+  local diff_result = session and skeleton.active_diff(session)
+  if not diff_result then
     return false
   end
-
-  local diff_result = session.stored_diff_result
   if not diff_result.changes or #diff_result.changes == 0 then
     return false
   end
