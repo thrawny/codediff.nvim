@@ -756,14 +756,22 @@ local function enable_api(session, tabpage, silent)
     return false
   end
 
-  local diff_result = require("codediff.core.diff").compute_diff(original_lines, modified_lines, {
-    max_computation_time_ms = config.options.diff.max_computation_time_ms,
-    ignore_whitespace = config.options.diff.ignore_whitespace,
-    ignore_trim_whitespace = config.options.diff.ignore_trim_whitespace,
-  })
-
-  if #diff_result.changes == 0 then
-    vim.notify(string.format("Skeleton view: this %s's API did not change", scope), vim.log.levels.INFO)
+  -- A new module's API would be one added block, so it shows without diff
+  -- markup, and hunk navigation passes over it.
+  local added = #original_lines == 0
+  local diff_result
+  if added then
+    diff_result = { changes = {}, moves = {} }
+    vim.notify(string.format("Skeleton view: new %s, shown without diff markup", scope), vim.log.levels.INFO)
+  else
+    diff_result = require("codediff.core.diff").compute_diff(original_lines, modified_lines, {
+      max_computation_time_ms = config.options.diff.max_computation_time_ms,
+      ignore_whitespace = config.options.diff.ignore_whitespace,
+      ignore_trim_whitespace = config.options.diff.ignore_trim_whitespace,
+    })
+    if #diff_result.changes == 0 then
+      vim.notify(string.format("Skeleton view: this %s's API did not change", scope), vim.log.levels.INFO)
+    end
   end
 
   local swapped, api_bufs = {}, {}
@@ -789,7 +797,9 @@ local function enable_api(session, tabpage, silent)
   if two_panes then
     local left = show(original_win, "original", original_lines, original_buf)
     local right = show(modified_win, "modified", modified_lines, modified_buf)
-    require("codediff.ui.core").render_diff(left, right, original_lines, modified_lines, diff_result)
+    if not added then
+      require("codediff.ui.core").render_diff(left, right, original_lines, modified_lines, diff_result)
+    end
   else
     local win = session.modified_win
     if not (win and vim.api.nvim_win_is_valid(win)) then
@@ -797,7 +807,9 @@ local function enable_api(session, tabpage, silent)
       return false
     end
     local buf = show(win, "modified", modified_lines, modified_buf)
-    require("codediff.ui.inline").render_inline_diff(buf, diff_result, original_lines, modified_lines, { filetype = filetype })
+    if not added then
+      require("codediff.ui.inline").render_inline_diff(buf, diff_result, original_lines, modified_lines, { filetype = filetype })
+    end
   end
 
   session.skeleton = {

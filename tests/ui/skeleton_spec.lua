@@ -781,6 +781,16 @@ describe("skeleton API mode", function()
     session.skeleton = nil
   end)
 
+  it("shows a new module's API without diff markup", function()
+    vim.api.nvim_buf_set_lines(orig_buf, 0, -1, false, {})
+    session_mod.get_active_diffs()[tabpage].original_path = ""
+    assert.is_true(skeleton.enable(tabpage, { mode = "api" }))
+    assert.are.same({ "package shop", "", "func New(name string) *Server", "func Close()" }, lines_in(mod_win))
+    local marks = vim.api.nvim_buf_get_extmarks(vim.api.nvim_win_get_buf(mod_win), -1, 0, -1, {})
+    assert.equals(0, #marks)
+    assert.equals(0, #skeleton.active_diff(session_mod.get_active_diffs()[tabpage]).changes)
+  end)
+
   it("is skipped for a language without an API view", function()
     vim.bo[mod_buf].filetype = "lua"
     assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))
