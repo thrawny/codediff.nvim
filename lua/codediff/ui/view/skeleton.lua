@@ -692,12 +692,13 @@ local function enable_api(session, tabpage, silent)
       return {}
     end
     local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-    return language.extract({ { path = path, text = text } }, { comments = api.comments_shown() }) or {}
+    return language.extract({ { path = path, text = text } }, { comments = api.comments_shown(), private = api.private_shown() }) or {}
   end
   local original_lines = api_lines(original_buf, session.original_path)
   local modified_lines = api_lines(modified_buf, session.modified_path)
+  -- Said even when silent, because the cycle skips this state without a word otherwise.
   if #original_lines == 0 and #modified_lines == 0 then
-    notify(silent, "Skeleton view: this file exports nothing", vim.log.levels.INFO)
+    vim.notify("Skeleton view: this file exports nothing, so API is skipped. :Api private adds unexported declarations", vim.log.levels.INFO)
     return false
   end
 
@@ -707,10 +708,16 @@ local function enable_api(session, tabpage, silent)
     ignore_trim_whitespace = config.options.diff.ignore_trim_whitespace,
   })
 
+  if #diff_result.changes == 0 then
+    vim.notify("Skeleton view: this file's API did not change", vim.log.levels.INFO)
+  end
+
   local swapped = {}
   local function show(win, side, lines, keymap_source)
     local buf = api_buffer(side, lines, filetype)
     copy_keymaps(keymap_source, buf)
+    vim.keymap.set("n", "C", api.toggle_comments, { buffer = buf, desc = "Toggle comments in API views" })
+    vim.keymap.set("n", "P", api.toggle_private, { buffer = buf, desc = "Toggle unexported declarations in API views" })
     swapped[win] = vim.api.nvim_win_get_buf(win)
     vim.api.nvim_win_set_buf(win, buf)
     vim.api.nvim_win_set_cursor(win, { 1, 0 })

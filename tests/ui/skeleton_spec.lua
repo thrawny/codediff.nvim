@@ -753,6 +753,16 @@ describe("skeleton API mode", function()
     assert.equals(mod_buf, vim.api.nvim_win_get_buf(mod_win))
   end)
 
+  it("P adds unexported declarations to the API diff", function()
+    assert.is_true(skeleton.enable(tabpage, { mode = "api" }))
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.skeleton_want = "api"
+    vim.api.nvim_set_current_win(orig_win)
+    vim.api.nvim_feedkeys("P", "x", false)
+    assert.are.same({ "package shop", "", "func New() *Server", "func helper()" }, lines_in(orig_win))
+    require("codediff.api").toggle_private()
+  end)
+
   it("is skipped for a language without an API view", function()
     vim.bo[mod_buf].filetype = "lua"
     assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))

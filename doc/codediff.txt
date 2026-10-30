@@ -25,8 +25,9 @@ COMMANDS                                                  *codediff-commands*
 :Api [path]
 :Api toggle
 :Api comments
-    Show what a module exports, or toggle browse mode or comments. See
-    |codediff-api|.
+:Api private
+    Show what a module exports, or toggle browse mode, comments or unexported
+    declarations. See |codediff-api|.
 
 ==============================================================================
 USAGE                                                       *codediff-usage*
@@ -179,8 +180,10 @@ Press `s` in a diff view to cycle the skeleton view through five states:
                   only.
   API             A diff of what the file exports, without bodies, as in
                   |codediff-api|. Each side shows its own version's API.
-                  Comments follow `:Api comments`. Languages without an API
-                  view skip this state.
+                  `C` and `P` toggle comments and unexported declarations,
+                  as in an API view. A file that exports nothing skips this
+                  state with a message, unless unexported declarations are
+                  shown. Languages without an API view skip it too.
   current file    The file as it is now, in one pane, without diff markup.
                   From side-by-side, this switches to the inline layout and
                   back when you cycle on.
@@ -206,6 +209,8 @@ types with their exported fields and methods. Test files are left out.
                 mode off switches each API view back to its source.
 :Api comments   Show or hide comments in every API view. Comments are shown
                 at first.
+:Api private    Show or hide unexported declarations in every API view.
+                They are hidden at first.
 
 In an API view:
 
@@ -215,6 +220,8 @@ In an API view:
           word under the cursor. An exported definition opens in its
           module's API view, anything else in its source file.
   C       Show or hide comments, the same as `:Api comments`.
+  P       Show or hide unexported declarations, the same as
+          `:Api private`.
 
 The view is built from the files on disk each time it is shown. It does not
 update while you edit.

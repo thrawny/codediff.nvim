@@ -11,8 +11,10 @@ local languages = {
 }
 
 local enabled = false
--- Whether API views show comments. One setting for every view.
+-- Whether API views show comments and unexported declarations. One setting
+-- each for every view.
 local comments = true
+local private = false
 -- Windows whose next source file stays the real file, because <CR> asked for it.
 local skip_next = {}
 -- Per API buffer: { language = ..., targets = { [line] = { file, line } } }.
@@ -44,7 +46,7 @@ local function build(path)
   for _, file in ipairs(files) do
     sources[#sources + 1] = { path = file, text = table.concat(vim.fn.readfile(file), "\n") }
   end
-  local lines, targets = language.extract(sources, { comments = comments })
+  local lines, targets = language.extract(sources, { comments = comments, private = private })
   if not lines then
     return nil
   end
@@ -222,6 +224,7 @@ function M.attach_keymaps(buf)
   end, { buffer = buf, desc = "Open source" })
   vim.keymap.set("n", "gd", goto_definition, { buffer = buf, desc = "Go to definition in API view" })
   vim.keymap.set("n", "C", M.toggle_comments, { buffer = buf, desc = "Toggle comments in API views" })
+  vim.keymap.set("n", "P", M.toggle_private, { buffer = buf, desc = "Toggle unexported declarations in API views" })
 end
 
 -- Windows where browse mode leaves Go files alone: floats such as picker
@@ -271,10 +274,13 @@ function M.comments_shown()
   return comments
 end
 
--- Show or hide comments in every API view. Each shown view keeps its cursor on
--- the same declaration.
-function M.toggle_comments()
-  comments = not comments
+function M.private_shown()
+  return private
+end
+
+-- Rebuild every shown API view after a setting changed, with the cursor on the
+-- same declaration, and the API state of every diff view.
+local function rebuild_all()
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     local buf = vim.api.nvim_win_get_buf(win)
     local view = views[buf]
@@ -293,7 +299,29 @@ function M.toggle_comments()
       end
     end
   end
+
+  local skeleton = require("codediff.ui.view.skeleton")
+  local lifecycle = require("codediff.ui.lifecycle")
+  for _, tabpage in ipairs(vim.api.nvim_list_tabpages()) do
+    local session = lifecycle.get_session(tabpage)
+    if session and session.skeleton_want == "api" then
+      skeleton.on_diff_refresh(tabpage)
+    end
+  end
+end
+
+-- Show or hide comments in every API view.
+function M.toggle_comments()
+  comments = not comments
+  rebuild_all()
   vim.notify("API view comments " .. (comments and "shown" or "hidden"))
+end
+
+-- Show or hide unexported declarations in every API view.
+function M.toggle_private()
+  private = not private
+  rebuild_all()
+  vim.notify("API view unexported declarations " .. (private and "shown" or "hidden"))
 end
 
 function M.is_enabled()

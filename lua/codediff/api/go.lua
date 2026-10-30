@@ -6,8 +6,14 @@ local M = {}
 M.filetype = "go"
 M.lsp = "gopls"
 
-local function is_exported(name)
-  return name ~= nil and name:match("^%u") ~= nil
+-- Whether the view keeps unexported declarations. extract sets it for the
+-- length of one call.
+local include_private = false
+
+-- Whether a declaration belongs in the view: an exported name, or any name
+-- when the view keeps unexported declarations.
+local function is_shown(name)
+  return name ~= nil and (include_private or name:match("^%u") ~= nil)
 end
 
 local function text_of(node, src)
@@ -48,10 +54,10 @@ local function struct_field_exported(field, src)
   local names = field:field("name")
   if #names == 0 then
     local type_text = text_of(field:field("type")[1] or field, src)
-    return is_exported(type_text:match("([%w_]+)$"))
+    return is_shown(type_text:match("([%w_]+)$"))
   end
   for _, name in ipairs(names) do
-    if is_exported(text_of(name, src)) then
+    if is_shown(text_of(name, src)) then
       return true
     end
   end
@@ -60,7 +66,7 @@ end
 
 local function member_exported(member, src)
   if member:type() == "method_elem" or member:type() == "method_spec" then
-    return is_exported(field_name(member, "name", src))
+    return is_shown(field_name(member, "name", src))
   end
   return true
 end
@@ -193,20 +199,20 @@ local function collect(sources)
       if kind == "package_clause" then
         api.package = api.package or text_of(node, src)
       elseif kind == "function_declaration" then
-        if is_exported(field_name(node, "name", src)) then
+        if is_shown(field_name(node, "name", src)) then
           local text = signature(node, src)
           api.funcs[#api.funcs + 1] = entry(with_doc(node, src, text, node_lines(node, text), ""))
         end
       elseif kind == "method_declaration" then
         local owner = receiver_type(node, src)
-        if is_exported(field_name(node, "name", src)) and is_exported(owner) then
+        if is_shown(field_name(node, "name", src)) and is_shown(owner) then
           api.methods[owner] = api.methods[owner] or {}
           local text = signature(node, src)
           table.insert(api.methods[owner], entry(with_doc(node, src, text, node_lines(node, text), "")))
         end
       elseif kind == "type_declaration" then
         for spec in node:iter_children() do
-          if (spec:type() == "type_spec" or spec:type() == "type_alias") and is_exported(field_name(spec, "name", src)) then
+          if (spec:type() == "type_spec" or spec:type() == "type_alias") and is_shown(field_name(spec, "name", src)) then
             local text, lines = type_text(spec, src)
             -- A grouped type's comment is above its spec, a single type's above the declaration.
             local doc_node = spec:prev_sibling() and spec:prev_sibling():type() == "comment" and spec or node
@@ -234,7 +240,7 @@ local function collect(sources)
         grouped = grouped or text_of(node, src):match("^%w+%s*%(") ~= nil
         local kept, lines = {}, {}
         for _, spec in ipairs(specs) do
-          if is_exported(field_name(spec, "name", src)) then
+          if is_shown(field_name(spec, "name", src)) then
             local spec_text = text_of(spec, src)
             local spec_lines = node_lines(spec, spec_text)
             if grouped then
@@ -382,11 +388,13 @@ function M.files(path)
 end
 
 -- The API view of a package's sources, given as { { path, text }, ... }.
--- opts.comments = false leaves out doc comments and trailing comments.
+-- opts.comments = false leaves out doc comments and trailing comments, and
+-- opts.private = true adds unexported declarations.
 -- Returns the view's lines, and per line the source position it came from,
 -- as { [line] = { file, line } }. Returns nil if the package exports nothing.
 function M.extract(sources, opts)
   include_comments = not opts or opts.comments ~= false
+  include_private = opts ~= nil and opts.private == true
   local lines, items = render(collect(sources))
   if #items == 0 then
     return nil

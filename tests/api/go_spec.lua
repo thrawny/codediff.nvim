@@ -145,6 +145,14 @@ describe("Go API view", function()
     assert.are.same({ "package shop", "", "type Server struct {", "\tName string", "}" }, lines)
   end)
 
+  it("adds unexported declarations when asked", function()
+    local lines = go.extract({ { path = "/p/server.go", text = SERVER } }, { comments = false, private = true })
+    for _, expected in ipairs({ "func helper()", "func (s *Server) stop()", "\tport int", "type cache struct{}", "func (c *cache) Get()" }) do
+      assert.is_true(vim.tbl_contains(lines, expected), "missing: " .. expected)
+    end
+    assert.is_true(vim.tbl_contains(lines, "var errClosed = 1"))
+  end)
+
   it("returns nil for a package that exports nothing", function()
     assert.is_nil(go.extract({ { path = "/p/main.go", text = "package main\n\nfunc main() {}" } }))
   end)

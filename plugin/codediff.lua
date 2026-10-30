@@ -152,6 +152,8 @@ vim.api.nvim_create_user_command("Api", function(opts)
     require("codediff.api").toggle()
   elseif opts.args == "comments" then
     require("codediff.api").toggle_comments()
+  elseif opts.args == "private" then
+    require("codediff.api").toggle_private()
   else
     require("codediff.api").open(opts.args)
   end
@@ -159,12 +161,12 @@ end, {
   nargs = "?",
   complete = function(arg_lead)
     local candidates = vim.fn.getcompletion(arg_lead, "file")
-    for _, subcommand in ipairs({ "comments", "toggle" }) do
+    for _, subcommand in ipairs({ "comments", "private", "toggle" }) do
       if subcommand:find(arg_lead, 1, true) == 1 then
         table.insert(candidates, 1, subcommand)
       end
     end
     return candidates
   end,
-  desc = "Show a module's exported API: :Api [<path>] | toggle | comments",
+  desc = "Show a module's exported API: :Api [<path>] | toggle | comments | private",
 })
