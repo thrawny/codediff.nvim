@@ -24,7 +24,9 @@ COMMANDS                                                  *codediff-commands*
 
 :Api [path]
 :Api toggle
-    Show what a module exports, or toggle browse mode. See |codediff-api|.
+:Api comments
+    Show what a module exports, or toggle browse mode or comments. See
+    |codediff-api|.
 
 ==============================================================================
 USAGE                                                       *codediff-usage*
@@ -198,6 +200,8 @@ types with their exported fields and methods. Test files are left out.
                 cursor on the nearest declaration. Floating windows, diff
                 windows and CodeDiff tabs keep the real file. Turning browse
                 mode off switches each API view back to its source.
+:Api comments   Show or hide comments in every API view. Comments are shown
+                at first.
 
 In an API view:
 
@@ -206,6 +210,7 @@ In an API view:
   gd      Ask the language server (gopls for Go) for the definition of the
           word under the cursor. An exported definition opens in its
           module's API view, anything else in its source file.
+  C       Show or hide comments, the same as `:Api comments`.
 
 The view is built from the files on disk each time it is shown. It does not
 update while you edit.

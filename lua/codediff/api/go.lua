@@ -75,6 +75,9 @@ local function node_lines(node, text)
   return lines
 end
 
+-- Whether the view keeps comments. extract sets it for the length of one call.
+local include_comments = true
+
 -- The doc comment right above a node: the run of comments that ends on the line
 -- before it, at the node's column. Returns its lines and their source lines, or
 -- empty lists.
@@ -98,6 +101,9 @@ end
 
 -- A comment after a node on its last line, such as a struct field's comment.
 local function trailing_comment(node, src)
+  if not include_comments then
+    return ""
+  end
   local next = node:next_sibling()
   if next and next:type() == "comment" and next:start() == node:end_() then
     return " " .. text_of(next, src)
@@ -107,6 +113,9 @@ end
 
 -- Prepend a node's doc comment to text and lines, indented by indent.
 local function with_doc(node, src, text, lines, indent)
+  if not include_comments then
+    return text, lines
+  end
   local doc, doc_lines = doc_comment(node, src)
   if #doc == 0 then
     return text, lines
@@ -359,9 +368,11 @@ function M.files(path)
 end
 
 -- The API view of a package's sources, given as { { path, text }, ... }.
+-- opts.comments = false leaves out doc comments and trailing comments.
 -- Returns the view's lines, and per line the source position it came from,
 -- as { [line] = { file, line } }. Returns nil if the package exports nothing.
-function M.extract(sources)
+function M.extract(sources, opts)
+  include_comments = not opts or opts.comments ~= false
   local lines, items = render(collect(sources))
   if #items == 0 then
     return nil

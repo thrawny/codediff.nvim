@@ -131,6 +131,20 @@ describe("Go API view", function()
     assert.are.same({ file = "/p/server.go", line = 5 }, targets[7])
   end)
 
+  it("leaves comments out when asked", function()
+    local text = table.concat({
+      "package shop",
+      "",
+      "// Server serves the shop.",
+      "type Server struct {",
+      "\t// Name is the shop's name.",
+      "\tName string // shown in the header",
+      "}",
+    }, "\n")
+    local lines = go.extract({ { path = "/p/server.go", text = text } }, { comments = false })
+    assert.are.same({ "package shop", "", "type Server struct {", "\tName string", "}" }, lines)
+  end)
+
   it("returns nil for a package that exports nothing", function()
     assert.is_nil(go.extract({ { path = "/p/main.go", text = "package main\n\nfunc main() {}" } }))
   end)
@@ -179,6 +193,26 @@ describe("API browse mode", function()
     vim.wait(100)
     assert.are.equal(dir .. "/server.go", vim.api.nvim_buf_get_name(0))
     assert.are.equal(11, vim.api.nvim_win_get_cursor(0)[1])
+  end)
+
+  it("C hides comments and keeps the cursor on its declaration", function()
+    vim.fn.writefile({
+      "package shop",
+      "",
+      "// Server serves the shop.",
+      "type Server struct{}",
+      "",
+      "// New makes a Server.",
+      "func New() *Server { return nil }",
+    }, dir .. "/server.go")
+    api.open(dir .. "/server.go")
+    vim.cmd("/^\\/\\/ New")
+    vim.api.nvim_feedkeys("C", "x", false)
+    assert.are.equal("func New() *Server", vim.api.nvim_get_current_line())
+    assert.are.equal(0, #vim.fn.filter(vim.api.nvim_buf_get_lines(0, 0, -1, false), "v:val =~# '^//'"))
+    vim.api.nvim_feedkeys("C", "x", false)
+    assert.are.equal("func New() *Server", vim.api.nvim_get_current_line())
+    assert.are.equal("// New makes a Server.", vim.fn.getline(vim.fn.line(".") - 1))
   end)
 
   it("leaves test files as they are", function()

@@ -11,6 +11,8 @@ local languages = {
 }
 
 local enabled = false
+-- Whether API views show comments. One setting for every view.
+local comments = true
 -- Windows whose next source file stays the real file, because <CR> asked for it.
 local skip_next = {}
 -- Per API buffer: { language = ..., targets = { [line] = { file, line } } }.
@@ -37,7 +39,7 @@ local function build(path)
   for _, file in ipairs(files) do
     sources[#sources + 1] = { path = file, text = table.concat(vim.fn.readfile(file), "\n") }
   end
-  local lines, targets = language.extract(sources)
+  local lines, targets = language.extract(sources, { comments = comments })
   if not lines then
     return nil
   end
@@ -214,6 +216,7 @@ function M.attach_keymaps(buf)
     end
   end, { buffer = buf, desc = "Open source" })
   vim.keymap.set("n", "gd", goto_definition, { buffer = buf, desc = "Go to definition in API view" })
+  vim.keymap.set("n", "C", M.toggle_comments, { buffer = buf, desc = "Toggle comments in API views" })
 end
 
 -- Windows where browse mode leaves Go files alone: floats such as picker
@@ -257,6 +260,31 @@ local function create_autocmds()
       views[args.buf] = nil
     end,
   })
+end
+
+-- Show or hide comments in every API view. Each shown view keeps its cursor on
+-- the same declaration.
+function M.toggle_comments()
+  comments = not comments
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local view = views[buf]
+    if view then
+      local target = vim.api.nvim_win_call(win, cursor_target)
+      local rebuilt = target and build(target.file)
+      if rebuilt then
+        -- A hidden comment's line has no match, so take the declaration below it.
+        local best, best_line
+        for api_line, t in pairs(views[rebuilt].targets) do
+          if t.file == target.file and t.line >= target.line and (not best_line or t.line < best_line) then
+            best, best_line = api_line, t.line
+          end
+        end
+        vim.api.nvim_win_set_cursor(win, { best or line_for(rebuilt, target.file, target.line) or 1, 0 })
+      end
+    end
+  end
+  vim.notify("API view comments " .. (comments and "shown" or "hidden"))
 end
 
 function M.is_enabled()

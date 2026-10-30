@@ -150,6 +150,8 @@ end, {
 vim.api.nvim_create_user_command("Api", function(opts)
   if opts.args == "toggle" then
     require("codediff.api").toggle()
+  elseif opts.args == "comments" then
+    require("codediff.api").toggle_comments()
   else
     require("codediff.api").open(opts.args)
   end
@@ -157,10 +159,12 @@ end, {
   nargs = "?",
   complete = function(arg_lead)
     local candidates = vim.fn.getcompletion(arg_lead, "file")
-    if ("toggle"):find(arg_lead, 1, true) == 1 then
-      table.insert(candidates, 1, "toggle")
+    for _, subcommand in ipairs({ "comments", "toggle" }) do
+      if subcommand:find(arg_lead, 1, true) == 1 then
+        table.insert(candidates, 1, subcommand)
+      end
     end
     return candidates
   end,
-  desc = "Show a module's exported API: :Api [<path>] | toggle",
+  desc = "Show a module's exported API: :Api [<path>] | toggle | comments",
 })
