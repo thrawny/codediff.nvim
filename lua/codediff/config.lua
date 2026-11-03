@@ -62,6 +62,12 @@ M.defaults = {
   },
 
   -- Explorer panel configuration
+  -- API views (:Api and the skeleton view's API state)
+  api = {
+    comments = true, -- Show doc comments; C toggles them for the session
+    private = false, -- Show unexported declarations; P toggles them for the session
+  },
+
   explorer = {
     position = "left", -- "left" or "bottom"
     width = 40, -- Width when position is "left" (columns)

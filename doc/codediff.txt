@@ -163,7 +163,8 @@ revision or the checked-out branch.
 
 `pr` and `branch` call the `gh` CLI. Configure review sessions with
 `require("codediff.review").setup({...})`. `lua/codediff/review/config.lua`
-lists the options and their defaults.
+lists the options and their defaults. Set `codediff = { view = "api" }` to
+open every review in the API state of |codediff-skeleton|.
 
 ==============================================================================
 SKELETON VIEW                                             *codediff-skeleton*
@@ -214,9 +215,9 @@ types with their exported fields and methods. Test files are left out.
                 windows and CodeDiff tabs keep the real file. Turning browse
                 mode off switches each API view back to its source.
 :Api comments   Show or hide comments in every API view. Comments are shown
-                at first.
+                at first, unless `api.comments` is false.
 :Api private    Show or hide unexported declarations in every API view.
-                They are hidden at first.
+                They are hidden at first, unless `api.private` is true.
 
 In an API view:
 
@@ -305,6 +306,10 @@ Setup entry point:
       conflict_sign_resolved = nil,
       conflict_sign_accepted = nil,
       conflict_sign_rejected = nil,
+    },
+    api = {
+      comments = true, -- doc comments in API views at first
+      private = false, -- unexported declarations in API views at first
     },
     diff = {
       layout = "side-by-side",

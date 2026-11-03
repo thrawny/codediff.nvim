@@ -70,6 +70,17 @@ describe("codediff.review foundation", function()
     assert.is_true(session.codediff_review_active)
   end)
 
+  it("opens in the API view when codediff.view is api", function()
+    require("codediff.review").setup({ codediff = { view = "api" } })
+    local tabpage = open_review(repo)
+    local session = require("codediff.ui.lifecycle").get_session(tabpage)
+    -- file1.txt has no API view, so its diff shows with API on.
+    assert.is_true(vim.wait(2000, function()
+      return session.skeleton_want == "api"
+    end))
+    assert.is_false(require("codediff.ui.view.skeleton").api_shown(session))
+  end)
+
   it("reports the active review session", function()
     local review = require("codediff.review")
     assert.is_false(review.is_active())

@@ -17,6 +17,7 @@ local M = {}
 ---@class CodeDiffReviewCodeDiffConfig
 ---@field readonly boolean
 ---@field focus_modified_pane boolean
+---@field view "diff"|"api" The view a review opens in
 
 ---@class CodeDiffReviewGithubConfig
 ---@field remote string
@@ -39,6 +40,7 @@ M.defaults = {
   codediff = {
     readonly = true,
     focus_modified_pane = true,
+    view = "diff",
   },
   github = {
     remote = "origin",

@@ -1062,6 +1062,32 @@ function M.api_shown(session)
   return session.skeleton ~= nil and session.skeleton.mode == "api"
 end
 
+---Switch to mode, without messages. API mode stays wanted even when the file
+---on screen has no API view: that file shows its normal diff, and the next
+---file with one shows it.
+function M.want(tabpage, mode)
+  local session = lifecycle.get_session(tabpage)
+  if not session then
+    return false
+  end
+  if session.skeleton_want == mode then
+    return true
+  end
+  if session.skeleton_want then
+    M.disable(tabpage)
+  end
+  if M.enable(tabpage, { mode = mode, silent = true }) then
+    return true
+  end
+  if mode == "api" then
+    session.skeleton_want = "api"
+    session.skeleton_path = session.modified_path
+    ensure_autocmds()
+    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
+  end
+  return false
+end
+
 ---Turn the API view on or off. Once on, it stays on across file switches,
 ---and a file without an API view shows its normal diff until the next file
 ---that has one.
@@ -1076,18 +1102,11 @@ function M.toggle_api(tabpage)
     vim.notify("API view: off", vim.log.levels.INFO)
     return
   end
-  if session.skeleton_want then
-    M.disable(tabpage)
-  end
-  if not M.enable(tabpage, { mode = "api", silent = true }) then
-    session.skeleton_want = "api"
-    session.skeleton_path = session.modified_path
-    ensure_autocmds()
-    vim.api.nvim_exec_autocmds("User", { pattern = "CodeDiffModeChanged" })
+  if M.want(tabpage, "api") then
+    vim.notify("API view: on", vim.log.levels.INFO)
+  else
     vim.notify("API view: on. This file has no API view, so it shows the diff", vim.log.levels.INFO)
-    return
   end
-  vim.notify("API view: on", vim.log.levels.INFO)
 end
 
 local MODE_NAMES = { seams = "seams only", focused = "focused seams", api = "API", file = "current file" }

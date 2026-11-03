@@ -249,6 +249,24 @@ describe("API browse mode", function()
     assert.are.equal("// New makes a Server.", vim.fn.getline(vim.fn.line(".") - 1))
   end)
 
+  it("api.comments = false hides comments until C shows them", function()
+    local options = require("codediff.config").options
+    options.api.comments = false
+    vim.fn.writefile({ "package shop", "", "// New makes a Server.", "func New() {}" }, dir .. "/server.go")
+    api.open(dir .. "/server.go")
+    assert.is_false(api.comments_shown())
+    local function comment_lines()
+      return #vim.fn.filter(vim.api.nvim_buf_get_lines(0, 0, -1, false), "v:val =~# '^//'")
+    end
+    assert.are.equal(0, comment_lines())
+    api.toggle_comments()
+    assert.is_true(comment_lines() > 0)
+    assert.is_true(api.comments_shown())
+    api.toggle_comments()
+    options.api.comments = true
+    assert.is_true(api.comments_shown())
+  end)
+
   it("leaves test files as they are", function()
     api.toggle()
     vim.cmd("edit " .. dir .. "/server_test.go")

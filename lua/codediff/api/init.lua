@@ -12,9 +12,9 @@ local languages = {
 
 local enabled = false
 -- Whether API views show comments and unexported declarations. One setting
--- each for every view.
-local comments = true
-local private = false
+-- each for every view. nil until toggled, which means the configured default.
+local comments = nil
+local private = nil
 -- Windows whose next source file stays the real file, because <CR> asked for it.
 local skip_next = {}
 -- Per API buffer: { language = ..., targets = { [line] = { file, line } } }.
@@ -46,7 +46,7 @@ local function build(path)
   for _, file in ipairs(files) do
     sources[#sources + 1] = { path = file, text = table.concat(vim.fn.readfile(file), "\n") }
   end
-  local lines, targets = language.extract(sources, { comments = comments, private = private })
+  local lines, targets = language.extract(sources, { comments = M.comments_shown(), private = M.private_shown() })
   if not lines then
     return nil
   end
@@ -338,11 +338,22 @@ function M.module_sources(git_root, revision, rel_path, language)
   return sources
 end
 
+local function configured(name)
+  local options = require("codediff.config").options.api or {}
+  return options[name] == true
+end
+
 function M.comments_shown()
+  if comments == nil then
+    return configured("comments")
+  end
   return comments
 end
 
 function M.private_shown()
+  if private == nil then
+    return configured("private")
+  end
   return private
 end
 
@@ -380,16 +391,25 @@ end
 
 -- Show or hide comments in every API view.
 function M.toggle_comments()
-  comments = not comments
+  local shown = not M.comments_shown()
+  -- Matching the configured default again means following the config.
+  comments = shown
+  if shown == configured("comments") then
+    comments = nil
+  end
   rebuild_all()
-  vim.notify("API view comments " .. (comments and "shown" or "hidden"))
+  vim.notify("API view comments " .. (shown and "shown" or "hidden"))
 end
 
 -- Show or hide unexported declarations in every API view.
 function M.toggle_private()
-  private = not private
+  local shown = not M.private_shown()
+  private = shown
+  if shown == configured("private") then
+    private = nil
+  end
   rebuild_all()
-  vim.notify("API view unexported declarations " .. (private and "shown" or "hidden"))
+  vim.notify("API view unexported declarations " .. (shown and "shown" or "hidden"))
 end
 
 function M.is_enabled()

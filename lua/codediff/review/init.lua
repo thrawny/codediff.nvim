@@ -124,6 +124,10 @@ local function open_codediff_with_revisions(rev1, rev2)
     local tabpage = vim.api.nvim_get_current_tabpage()
     if mark_review_session(tabpage) then
       M._check_codediff_session()
+      local view = config.get().codediff.view
+      if view and view ~= "diff" then
+        require("codediff.ui.view.skeleton").want(tabpage, view)
+      end
       return
     end
     if attempts < max_attempts then
