@@ -835,6 +835,29 @@ describe("skeleton API mode", function()
     assert.equals(0, #skeleton.active_diff(session_mod.get_active_diffs()[tabpage]).changes)
   end)
 
+  it("diffs an added file's module against the explorer's base", function()
+    local root = vim.fn.resolve(vim.fn.tempname())
+    vim.fn.mkdir(root .. "/shop", "p")
+    vim.fn.writefile({ "package shop", "", "func New() {}" }, root .. "/shop/shop.go")
+    for _, cmd in ipairs({ { "init", "-q" }, { "add", "." }, { "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init" } }) do
+      vim.fn.system(vim.list_extend({ "git", "-C", root }, cmd))
+    end
+    vim.fn.writefile({ "package shop", "", "func Close() {}" }, root .. "/shop/close.go")
+    vim.api.nvim_buf_set_lines(orig_buf, 0, -1, false, {})
+
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.mode = "explorer"
+    session.git_root = root
+    session.original_path = ""
+    session.modified_path = root .. "/shop/close.go"
+    session.explorer = { current_file_group = "unstaged" }
+    assert.is_true(skeleton.enable(tabpage, { mode = "api" }))
+    assert.are.same({ "package shop", "", "func New()" }, lines_in(orig_win))
+    assert.are.same({ "package shop", "", "func Close()", "func New()" }, lines_in(mod_win))
+    assert.equals(1, #skeleton.active_diff(session).changes)
+    vim.fn.delete(root, "rf")
+  end)
+
   it("is skipped for a language without an API view", function()
     vim.bo[mod_buf].filetype = "lua"
     assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))

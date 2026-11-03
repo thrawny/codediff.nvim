@@ -701,6 +701,28 @@ function M.api_side(session, buf)
   end
 end
 
+---The revisions to read the module at, for each side. A one-sided file, such
+---as an added or deleted one, carries a revision for its own side only, so
+---both sides come from the revisions the explorer compares. nil means the
+---working tree.
+local function module_revisions(session)
+  local function present(path)
+    return path ~= nil and path ~= ""
+  end
+  local explorer = session.explorer
+  if (present(session.original_path) and present(session.modified_path)) or not explorer then
+    return session.original_revision, session.modified_revision
+  end
+  local base, target = explorer.base_revision, explorer.target_revision
+  if base then
+    return base, target ~= "WORKING" and target or nil
+  end
+  if explorer.current_file_group == "staged" then
+    return "HEAD", ":0"
+  end
+  return ":0", nil
+end
+
 local function enable_api(session, tabpage, silent)
   local original_buf, modified_buf = session.original_bufnr, session.modified_bufnr
   if not (modified_buf and vim.api.nvim_buf_is_valid(modified_buf)) then
@@ -734,8 +756,9 @@ local function enable_api(session, tabpage, silent)
     local function module_lines(revision)
       return language.extract(api.module_sources(session.git_root, revision, rel_path, language), opts) or {}
     end
-    original_lines = module_lines(session.original_revision)
-    modified_lines = module_lines(session.modified_revision)
+    local original_revision, modified_revision = module_revisions(session)
+    original_lines = module_lines(original_revision)
+    modified_lines = module_lines(modified_revision)
   else
     -- Without git, each side's API comes from its buffer's text. A side
     -- without a file, such as the old side of an added file, has none.
