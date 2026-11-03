@@ -187,6 +187,11 @@ Press `s` in a diff view to cycle the skeleton view through three states:
                   From side-by-side, this switches to the inline layout and
                   back when you cycle on.
 
+Press `a` to turn the API state on or off directly (`keymaps.view.toggle_api`).
+It stays on when you switch files. A file without an API view, such as a
+file in a language without one, shows its normal diff, and the winbar shows
+"Diff (API on)". The next file that has an API view shows it again.
+
 The skeleton view works in both layouts and stays on when you switch files.
 The winbar always shows the current mode: Diff, API or File. Enabling
 `diff.winbar.enabled` adds file and hunk positions; file mode hides the hunk

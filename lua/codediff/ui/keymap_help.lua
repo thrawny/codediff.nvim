@@ -65,7 +65,10 @@ local function build_sections(keymaps, is_explorer, is_history, is_conflict)
   end
   table.insert(view_items, { km.toggle_layout, "Toggle inline/side-by-side layout" })
   if km.toggle_skeleton then
-    table.insert(view_items, { km.toggle_skeleton, "Cycle skeleton view (off/seams-only/focused-seams/current-file)" })
+    table.insert(view_items, { km.toggle_skeleton, "Cycle skeleton view (off/API/current-file)" })
+  end
+  if km.toggle_api then
+    table.insert(view_items, { km.toggle_api, "Toggle API view" })
   end
   if km.align_move then
     table.insert(view_items, { km.align_move, "Align moved code block" })

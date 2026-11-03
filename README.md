@@ -44,7 +44,7 @@ With lazy.nvim:
 :Api toggle                 " open Go files as their package's API view
 ```
 
-In a diff, `]c`/`[c` move between changes, `t` switches layout, `s` cycles the skeleton view and `g?` lists every keymap. The winbar always shows the current mode: Diff, API or File.
+In a diff, `]c`/`[c` move between changes, `t` switches layout, `s` cycles the skeleton view, `a` toggles the API view and `g?` lists every keymap. The winbar always shows the current mode: Diff, API or File.
 
 `:help codediff` documents every command, option, highlight group and event.
 

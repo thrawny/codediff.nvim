@@ -858,6 +858,31 @@ describe("skeleton API mode", function()
     vim.fn.delete(root, "rf")
   end)
 
+  it("a toggles the API view on and off", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    skeleton.toggle_api(tabpage)
+    assert.equals("api", session.skeleton_want)
+    assert.is_true(skeleton.api_shown(session))
+    assert.are.same({ "package shop", "", "func New(name string) *Server", "func Close()" }, lines_in(mod_win))
+    skeleton.toggle_api(tabpage)
+    assert.is_nil(session.skeleton_want)
+    assert.equals(mod_buf, vim.api.nvim_win_get_buf(mod_win))
+  end)
+
+  it("a keeps the API view on for a file without one, and shows the next file's", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    vim.bo[mod_buf].filetype = "lua"
+    skeleton.toggle_api(tabpage)
+    assert.equals("api", session.skeleton_want)
+    assert.is_false(skeleton.api_shown(session))
+    assert.equals(mod_buf, vim.api.nvim_win_get_buf(mod_win))
+
+    -- The next file has an API view.
+    vim.bo[mod_buf].filetype = "go"
+    skeleton.on_diff_refresh(tabpage)
+    assert.is_true(skeleton.api_shown(session))
+  end)
+
   it("is skipped for a language without an API view", function()
     vim.bo[mod_buf].filetype = "lua"
     assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))

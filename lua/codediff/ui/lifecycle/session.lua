@@ -54,6 +54,10 @@ local function build_winbar(sess, win)
   local winbar_config = config.options.diff.winbar or {}
   local mode_labels = { seams = "Seams", focused = "Focused seams", api = "API", file = "File" }
   local mode = mode_labels[sess.skeleton_want] or "Diff"
+  -- API is on, but this file has no API view, so its diff shows.
+  if sess.skeleton_want == "api" and not require("codediff.ui.view.skeleton").api_shown(sess) then
+    mode = "Diff (API on)"
+  end
   if not winbar_config.enabled then
     return " " .. mode
   end

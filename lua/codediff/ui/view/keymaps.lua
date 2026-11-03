@@ -617,6 +617,11 @@ function M.setup_all_keymaps(tabpage, original_bufnr, modified_bufnr, is_explore
       require("codediff.ui.view.skeleton").cycle(tabpage)
     end, { desc = "Cycle skeleton view (off/API/file)" })
   end
+  if keymaps.toggle_api then
+    lifecycle.set_tab_keymap(tabpage, "n", keymaps.toggle_api, function()
+      require("codediff.ui.view.skeleton").toggle_api(tabpage)
+    end, { desc = "Toggle API view" })
+  end
 
   -- Toggle stage/unstage (- key) - only in explorer mode
   if is_explorer_mode and keymaps.toggle_stage then

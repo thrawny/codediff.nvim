@@ -130,6 +130,7 @@ M.defaults = {
       align_move = "gm", -- Temporarily align other pane to show paired moved code
       toggle_layout = "t", -- Toggle diff layout for the current codediff session
       toggle_skeleton = "s", -- Cycle skeleton view (off/API/current-file); sticky across file switches
+      toggle_api = "a", -- Toggle the API view; sticky across file switches, files without one show their diff
       show_help = "g?", -- Show floating window with available keymaps
     },
     explorer = {
