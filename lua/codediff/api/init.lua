@@ -9,6 +9,8 @@ local M = {}
 local languages = {
   go = require("codediff.api.go"),
   python = require("codediff.api.python"),
+  typescript = require("codediff.api.typescript"),
+  typescriptreact = require("codediff.api.typescript"),
 }
 
 local enabled = false
@@ -160,12 +162,17 @@ local function source_position(target, word)
 end
 
 -- The language server to ask for definitions: the language's named one, or
--- else any running client for its filetype that answers definition requests.
+-- else any running client for one of its filetypes that answers definition
+-- requests.
 local function client_for(language)
+  local filetypes = language.filetypes or { language.filetype }
+  local function handled(filetype)
+    return vim.tbl_contains(filetypes, filetype)
+  end
   for _, client in ipairs(vim.lsp.get_clients(language.lsp and { name = language.lsp } or nil)) do
-    local handles = language.lsp ~= nil or vim.tbl_contains(client.config.filetypes or {}, language.filetype)
+    local handles = language.lsp ~= nil or vim.iter(client.config.filetypes or {}):any(handled)
     for buf in pairs(client.attached_buffers or {}) do
-      handles = handles or (vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].filetype == language.filetype)
+      handles = handles or (vim.api.nvim_buf_is_valid(buf) and handled(vim.bo[buf].filetype))
     end
     if handles and client:supports_method("textDocument/definition") then
       return client

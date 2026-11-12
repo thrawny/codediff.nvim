@@ -175,8 +175,11 @@ Press `s` in a diff view to cycle the skeleton view through three states:
   API             A diff of what the file's module exports, without bodies,
                   as in |codediff-api|. For Go the module is the file's
                   package. For Python it is the file, or the package if
-                  its __init__.py re-exports from the file. Each side reads every file of the module at its
-                  own revision. Without git, it covers the file only.
+                  its __init__.py re-exports from the file. For
+                  TypeScript it is the file, or the directory if its
+                  index.ts re-exports from the file. Each side reads every
+                  file of the module at its own revision. Without git, it
+                  covers the file only.
                   A new module shows its API without diff markup.
                   Hunk navigation follows the API diff. Past the module's
                   last hunk, next hunk or file goes to the next module,
@@ -203,7 +206,7 @@ position, and API mode counts hunks in the API diff.
 API VIEW                                                      *codediff-api*
 
 The API view shows what a module exports, with doc comments and without any
-bodies, in a read-only buffer, for Go and Python.
+bodies, in a read-only buffer, for Go, Python and TypeScript.
 
 A Go view covers a package: its exported consts, vars and functions, and its
 exported types with their exported fields and methods. Test files are left
@@ -225,6 +228,25 @@ re-exports, from whichever file of the package holds them. Other files of the
 package, and `__init__.py`'s own view when it re-exports nothing, cover one
 file each.
 
+A TypeScript view covers one `.ts` or `.tsx` file: its exported declarations
+in source order, with their JSDoc and other comments. A function or method
+shows its signature with ` ...` for its body. An overloaded function shows
+its overload signatures without the implementation. A class shows its
+members, except `private` and `#private` ones. Interfaces, type aliases,
+enums and other declarations show as written, with any function in them cut
+at its body, such as `export const stop = async () => ...`. A declaration
+counts as exported if it has `export`, if an `export { ... }` clause names
+it, or if it is a `declare` statement. Imports do not show. Export
+statements without a declaration, such as `export * from "./util"`, show as
+written.
+
+A TypeScript file that its directory's `index.ts` or `index.tsx` re-exports
+from shows the barrel's view instead: what `index.ts` declares and exports,
+with each re-export such as `export { Server } from "./server"` or
+`export * from "./util"` followed by the definitions it pulls in, from
+whichever file of the directory holds them. Re-exports from other
+directories show without definitions.
+
 :Api [path]     Open the API view of the current file's module, or of
                 [path], in a vertical split. [path] can be a file or a
                 directory.
@@ -236,17 +258,20 @@ file each.
 :Api comments   Show or hide comments in every API view. Comments are shown
                 at first, unless `api.comments` is false.
 :Api private    Show or hide unexported declarations in every API view,
-                such as Python names with a leading underscore. They are
-                hidden at first, unless `api.private` is true.
+                such as Python names with a leading underscore, or
+                TypeScript declarations without `export` and private class
+                members. They are hidden at first, unless `api.private` is
+                true.
 
 In an API view:
 
   <CR>    Open the source of the line under the cursor. The window keeps the
           real file until you open another file.
-  gd      Ask the language server (gopls for Go, any running Python
-          server, such as basedpyright or pylsp, for Python) for the
-          definition of the word under the cursor. An exported definition opens in its
-          module's API view, anything else in its source file.
+  gd      Ask the language server for the definition of the word under
+          the cursor: gopls for Go, and for Python or TypeScript any
+          running server for the language, such as basedpyright, pylsp,
+          ts_ls or vtsls. An exported definition opens in its module's API
+          view, anything else in its source file.
   C       Show or hide comments, the same as `:Api comments`.
   P       Show or hide unexported declarations, the same as
           `:Api private`.
