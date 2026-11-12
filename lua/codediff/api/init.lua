@@ -17,7 +17,8 @@ local comments = nil
 local private = nil
 -- Windows whose next source file stays the real file, because <CR> asked for it.
 local skip_next = {}
--- Per API buffer: { language = ..., targets = { [line] = { file, line } } }.
+-- Per API buffer: { language = ..., path = the file it was built for,
+-- targets = { [line] = { file, line } } }.
 local views = {}
 -- Per view name, such as a Go package directory: its API buffer.
 local buffers = {}
@@ -68,7 +69,7 @@ local function build(path)
   if vim.bo[buf].filetype ~= language.filetype then
     vim.bo[buf].filetype = language.filetype
   end
-  views[buf] = { language = language, targets = targets }
+  views[buf] = { language = language, path = path, targets = targets }
   return buf
 end
 
@@ -365,8 +366,12 @@ local function rebuild_all()
     local view = views[buf]
     if view then
       local target = vim.api.nvim_win_call(win, cursor_target)
-      local rebuilt = target and build(target.file)
-      if rebuilt then
+      -- A line without a source, such as a blank one, rebuilds from the file
+      -- the view was built for, with the cursor on the same line.
+      local rebuilt = build(target and target.file or view.path)
+      if rebuilt and not target then
+        vim.api.nvim_win_set_cursor(win, { math.min(vim.api.nvim_win_get_cursor(win)[1], vim.api.nvim_buf_line_count(rebuilt)), 0 })
+      elseif rebuilt then
         -- A hidden comment's line has no match, so take the declaration below it.
         local best, best_line
         for api_line, t in pairs(views[rebuilt].targets) do
