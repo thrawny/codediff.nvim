@@ -174,7 +174,8 @@ Press `s` in a diff view to cycle the skeleton view through three states:
   off             The normal diff.
   API             A diff of what the file's module exports, without bodies,
                   as in |codediff-api|. For Go the module is the file's
-                  package. Each side reads every file of the module at its
+                  package. For Python it is the file, or the package if
+                  its __init__.py re-exports from the file. Each side reads every file of the module at its
                   own revision. Without git, it covers the file only.
                   A new module shows its API without diff markup.
                   Hunk navigation follows the API diff. Past the module's
@@ -202,9 +203,27 @@ position, and API mode counts hunks in the API diff.
 API VIEW                                                      *codediff-api*
 
 The API view shows what a module exports, with doc comments and without any
-bodies, in a read-only buffer. Go is the only language so far. A Go view
-covers a package: its exported consts, vars and functions, and its exported
-types with their exported fields and methods. Test files are left out.
+bodies, in a read-only buffer, for Go and Python.
+
+A Go view covers a package: its exported consts, vars and functions, and its
+exported types with their exported fields and methods. Test files are left
+out.
+
+A Python view reads like a stub file. It covers one module: its public
+functions, classes and assignments in source order. A function shows its
+signature, decorators and docstring, with `...` for a body without a
+docstring. A class shows its public attributes, methods, dunder methods and
+nested classes. A name is public if the module's `__all__` lists it, or,
+without `__all__`, if it has no leading underscore. Imports show only when
+`__all__` lists a name they bind. Docstrings count as comments, so `C` hides
+them along with `#` comments.
+
+A Python file that its directory's `__init__.py` re-exports from shows the
+package's view instead: what `__init__.py` defines and exports, with each
+import such as `from .server import Server` followed by the definitions it
+re-exports, from whichever file of the package holds them. Other files of the
+package, and `__init__.py`'s own view when it re-exports nothing, cover one
+file each.
 
 :Api [path]     Open the API view of the current file's module, or of
                 [path], in a vertical split. [path] can be a file or a
@@ -216,15 +235,17 @@ types with their exported fields and methods. Test files are left out.
                 mode off switches each API view back to its source.
 :Api comments   Show or hide comments in every API view. Comments are shown
                 at first, unless `api.comments` is false.
-:Api private    Show or hide unexported declarations in every API view.
-                They are hidden at first, unless `api.private` is true.
+:Api private    Show or hide unexported declarations in every API view,
+                such as Python names with a leading underscore. They are
+                hidden at first, unless `api.private` is true.
 
 In an API view:
 
   <CR>    Open the source of the line under the cursor. The window keeps the
           real file until you open another file.
-  gd      Ask the language server (gopls for Go) for the definition of the
-          word under the cursor. An exported definition opens in its
+  gd      Ask the language server (gopls for Go, any running Python
+          server, such as basedpyright or pylsp, for Python) for the
+          definition of the word under the cursor. An exported definition opens in its
           module's API view, anything else in its source file.
   C       Show or hide comments, the same as `:Api comments`.
   P       Show or hide unexported declarations, the same as

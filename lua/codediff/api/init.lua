@@ -8,6 +8,7 @@ local M = {}
 
 local languages = {
   go = require("codediff.api.go"),
+  python = require("codediff.api.python"),
 }
 
 local enabled = false
@@ -158,6 +159,20 @@ local function source_position(target, word)
   return col and text, col and col - 1
 end
 
+-- The language server to ask for definitions: the language's named one, or
+-- else any running client for its filetype that answers definition requests.
+local function client_for(language)
+  for _, client in ipairs(vim.lsp.get_clients(language.lsp and { name = language.lsp } or nil)) do
+    local handles = language.lsp ~= nil or vim.tbl_contains(client.config.filetypes or {}, language.filetype)
+    for buf in pairs(client.attached_buffers or {}) do
+      handles = handles or (vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].filetype == language.filetype)
+    end
+    if handles and client:supports_method("textDocument/definition") then
+      return client
+    end
+  end
+end
+
 local function first_location(result)
   if not result or vim.tbl_isempty(result) then
     return nil
@@ -178,7 +193,7 @@ local function goto_definition()
     return
   end
   local text, col = source_position(target, word)
-  local client = vim.lsp.get_clients({ name = views[vim.api.nvim_get_current_buf()].language.lsp })[1]
+  local client = client_for(views[vim.api.nvim_get_current_buf()].language)
   if not text or not client then
     if text then
       open_source(0, target.file, target.line)
@@ -228,7 +243,7 @@ function M.attach_keymaps(buf)
   vim.keymap.set("n", "P", M.toggle_private, { buffer = buf, desc = "Toggle unexported declarations in API views" })
 end
 
--- Windows where browse mode leaves Go files alone: floats such as picker
+-- Windows where browse mode leaves source files alone: floats such as picker
 -- previews, diff windows, and CodeDiff tabs.
 local function excluded(win)
   if vim.api.nvim_win_get_config(win).relative ~= "" or vim.wo[win].diff then
@@ -276,12 +291,9 @@ local function git(git_root, args, stdin)
   return result.code == 0 and result.stdout or nil
 end
 
--- The sources of the module that holds rel_path, at a revision, as extract
--- takes them: { { path, text }, ... }, with absolute paths. revision is a
--- commit, ":0" or "STAGED" for the index, or nil or "WORKING" for the files on
--- disk. Returns nil if the language has no extractor, and an empty list if
--- the module has no files at that revision.
-function M.module_sources(git_root, revision, rel_path, language)
+-- The sources of the language's files in rel_path's directory, at a revision,
+-- as module_sources returns them.
+local function directory_sources(git_root, revision, rel_path, language)
   local rel_dir = vim.fn.fnamemodify(rel_path, ":h")
   local prefix = rel_dir == "." and "" or rel_dir .. "/"
   local sources = {}
@@ -335,6 +347,20 @@ function M.module_sources(git_root, revision, rel_path, language)
     end
     sources[#sources + 1] = { path = git_root .. "/" .. blob.path, text = out:sub(header_end + 1, header_end + size) }
     pos = header_end + size + 2
+  end
+  return sources
+end
+
+-- The sources of the module that holds rel_path, at a revision, as extract
+-- takes them: { { path, text }, ... }, with absolute paths. revision is a
+-- commit, ":0" or "STAGED" for the index, or nil or "WORKING" for the files on
+-- disk. Returns an empty list if the module has no files at that revision. A
+-- language whose module can be less than its directory, such as one Python
+-- file, picks the module's sources out of the directory's with select.
+function M.module_sources(git_root, revision, rel_path, language)
+  local sources = directory_sources(git_root, revision, rel_path, language)
+  if language.select then
+    return language.select(sources, git_root .. "/" .. rel_path)
   end
   return sources
 end

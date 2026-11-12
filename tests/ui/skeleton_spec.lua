@@ -858,6 +858,36 @@ describe("skeleton API mode", function()
     vim.fn.delete(root, "rf")
   end)
 
+  it("diffs a Python file's package view, and marks the files it shows", function()
+    local root = vim.fn.resolve(vim.fn.tempname())
+    vim.fn.mkdir(root .. "/shop", "p")
+    vim.fn.writefile({ "from .server import start" }, root .. "/shop/__init__.py")
+    vim.fn.writefile({ "def start(): pass" }, root .. "/shop/server.py")
+    vim.fn.writefile({ "def fmt(): pass" }, root .. "/shop/util.py")
+    for _, cmd in ipairs({ { "init", "-q" }, { "add", "." }, { "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init" } }) do
+      vim.fn.system(vim.list_extend({ "git", "-C", root }, cmd))
+    end
+    vim.fn.writefile({ "def start(port): pass" }, root .. "/shop/server.py")
+    vim.bo[orig_buf].filetype = "python"
+    vim.bo[mod_buf].filetype = "python"
+
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.git_root = root
+    session.original_path = "shop/server.py"
+    session.original_revision = "HEAD"
+    session.modified_path = root .. "/shop/server.py"
+    assert.is_true(skeleton.enable(tabpage, { mode = "api" }))
+    assert.are.same({ "from .server import start", "def start(): ..." }, lines_in(orig_win))
+    assert.are.same({ "from .server import start", "def start(port): ..." }, lines_in(mod_win))
+    assert.equals("python", vim.b[vim.api.nvim_win_get_buf(mod_win)].codediff_filetype)
+
+    local same = skeleton.same_api_module(session)
+    assert.is_true(same({ path = "shop/__init__.py" }))
+    assert.is_true(same({ path = "shop/server.py" }))
+    assert.is_false(same({ path = "shop/util.py" }))
+    vim.fn.delete(root, "rf")
+  end)
+
   it("a toggles the API view on and off", function()
     local session = session_mod.get_active_diffs()[tabpage]
     skeleton.toggle_api(tabpage)

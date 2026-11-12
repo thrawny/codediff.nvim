@@ -685,7 +685,15 @@ function M.same_api_module(session)
     return nil
   end
   return function(file_data)
-    return file_data.path ~= nil and module.language.module_of(file_data.path) == module.key
+    if not file_data.path then
+      return false
+    end
+    -- A language without module_of, such as Python, whose module depends on
+    -- what __init__.py re-exports, goes by the files the view shows.
+    if module.language.module_of then
+      return module.language.module_of(file_data.path) == module.key
+    end
+    return module.files ~= nil and module.files[file_data.path] == true
   end
 end
 
@@ -750,11 +758,17 @@ local function enable_api(session, tabpage, silent)
   local rel_path = relative(session.modified_path) or relative(session.original_path)
 
   local original_lines, modified_lines, scope
+  -- The files either side of a module's view shows lines from.
+  local module_files = rel_path and { [rel_path] = true } or {}
   if session.git_root and rel_path then
     -- The whole module on each side, at that side's revision.
     scope = "module"
     local function module_lines(revision)
-      return language.extract(api.module_sources(session.git_root, revision, rel_path, language), opts) or {}
+      local lines, targets = language.extract(api.module_sources(session.git_root, revision, rel_path, language), opts)
+      for _, target in pairs(targets or {}) do
+        module_files[relative(target.file)] = true
+      end
+      return lines or {}
     end
     local original_revision, modified_revision = module_revisions(session)
     original_lines = module_lines(original_revision)
@@ -842,7 +856,11 @@ local function enable_api(session, tabpage, silent)
     swapped = swapped,
     api_diff = diff_result,
     api_bufs = api_bufs,
-    api_module = scope == "module" and { language = language, key = language.module_of(rel_path) } or nil,
+    api_module = scope == "module" and {
+      language = language,
+      key = language.module_of and language.module_of(rel_path),
+      files = module_files,
+    } or nil,
   }
   return true
 end
