@@ -323,15 +323,25 @@ local function module_shown(mod)
 end
 
 -- The name of the package-local module an import pulls from, such as server in
--- `from .server import X` or `from shop.server import X` within shop, or nil.
+-- `from .server import X`, `from shop.server import X` or
+-- `from app.shop.server import X` within shop, or nil.
 local function sibling_module(mod, node)
   local module_name = node:field("module_name")[1]
   if not module_name then
     return nil
   end
   local text = text_of(module_name, mod.src)
-  local package = basename(dirname(mod.path))
-  return text:match("^%.([%w_]+)$") or text:match("^" .. vim.pesc(package) .. "%.([%w_]+)$")
+  local package = vim.pesc(basename(dirname(mod.path)))
+  return text:match("^%.([%w_]+)$") or text:match("^" .. package .. "%.([%w_]+)$") or text:match("%." .. package .. "%.([%w_]+)$")
+end
+
+-- An import's entry if it binds a name in the module's __all__, else nil.
+local function import_entry(mod, node)
+  for _, name in ipairs(import_names(mod, node)) do
+    if mod.all and mod.all[name.bound] then
+      return { lines = copy(mod, node:start(), (node:end_())), mod = mod, first = node:start(), last = (node:end_()) }
+    end
+  end
 end
 
 local function module_docstring(mod)
@@ -348,12 +358,7 @@ local function module_entries(mod)
   for node in mod.root:iter_children() do
     local kind = node:type()
     if kind == "import_statement" or kind == "import_from_statement" then
-      for _, name in ipairs(import_names(mod, node)) do
-        if mod.all and mod.all[name.bound] then
-          entries[#entries + 1] = { lines = copy(mod, node:start(), (node:end_())), mod = mod, first = node:start(), last = (node:end_()) }
-          break
-        end
-      end
+      entries[#entries + 1] = import_entry(mod, node)
     else
       entries[#entries + 1] = entry(mod, node, shown)
     end
@@ -418,7 +423,12 @@ local function package_entries(init, load)
       if #definitions > 0 then
         local lines = copy(init, node:start(), (node:end_()))
         entries[#entries + 1] = { lines = join(definitions, lines), group = true }
+      else
+        entries[#entries + 1] = import_entry(init, node)
       end
+    elseif node:type() == "import_statement" or node:type() == "import_from_statement" then
+      -- A re-export from outside the package shows as its import.
+      entries[#entries + 1] = import_entry(init, node)
     else
       entries[#entries + 1] = entry(init, node, shown)
     end

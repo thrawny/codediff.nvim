@@ -178,6 +178,23 @@ describe("Python API view", function()
     assert.are.same({ file = "/p/shop/cart.py", line = 2 }, target_of(lines, targets, "    def add(self, item): ..."))
   end)
 
+  it("follows a package's fully qualified imports, and shows re-exports from outside it", function()
+    local lines = python.extract({
+      source("/p/src/app/shop/__init__.py", {
+        "from app.shop.server import Server",
+        "from os.path import join",
+        '__all__ = ["Server", "join"]',
+      }),
+      source("/p/src/app/shop/server.py", { "class Server: pass" }),
+    }, { comments = false })
+    assert.are.same({
+      "from app.shop.server import Server",
+      "class Server: ...",
+      "",
+      "from os.path import join",
+    }, lines)
+  end)
+
   it("views a re-exported file as its package, and any other file alone", function()
     local dir = vim.fn.resolve(vim.fn.tempname())
     write(dir, {
