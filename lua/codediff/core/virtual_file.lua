@@ -56,9 +56,11 @@ local function load_virtual_buffer_content(buf, git_root, commit, filepath)
       -- crashing language servers that can't handle custom URI schemes.
       local ft = vim.filetype.match({ filename = filepath, buf = buf })
       if ft then
+        -- Store filetype for semantic tokens and the skeleton view without
+        -- firing autocmds.
+        vim.b[buf].codediff_filetype = ft
         local lang = vim.treesitter.language.get_lang(ft) or ft
         if pcall(vim.treesitter.start, buf, lang) then
-          -- Store filetype for semantic_tokens without firing autocmds
           vim.bo[buf].syntax = ""
         else
           -- TreeSitter parser not available, fall back to syntax highlighting

@@ -822,7 +822,17 @@ describe("skeleton API mode", function()
     local same = skeleton.same_api_module(session)
     assert.is_true(same({ path = "shop/other.go" }))
     assert.is_false(same({ path = "cart/cart.go" }))
+    -- A test file has its own entry in the explorer's API layout.
+    assert.is_false(same({ path = "shop/shop_test.go" }))
     session.skeleton = nil
+  end)
+
+  it("shows a test file's diff instead of its package's API", function()
+    local session = session_mod.get_active_diffs()[tabpage]
+    session.original_path = "/p/shop_test.go"
+    session.modified_path = "/p/shop_test.go"
+    assert.is_false(skeleton.enable(tabpage, { mode = "api", silent = true }))
+    assert.equals(mod_buf, vim.api.nvim_win_get_buf(mod_win))
   end)
 
   it("shows a new module's API without diff markup", function()

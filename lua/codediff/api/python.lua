@@ -482,38 +482,51 @@ local function view(sources)
   return lines, targets, count
 end
 
+-- Whether path is a test file, as pytest finds them: test_*.py, *_test.py,
+-- conftest.py, or any Python file under a test or tests directory.
+function M.is_test(path)
+  local name = basename(path)
+  return name:match("^test_.*%.py$") ~= nil or name:match("_test%.py$") ~= nil or name == "conftest.py" or (("/" .. path):match("/tests?/") ~= nil and name:match("%.py$") ~= nil)
+end
+
 -- Whether a file name is part of a package: a Python file.
 function M.in_package(name)
   return name:match("%.py$") ~= nil
+end
+
+-- The paths of sources that the package's view shows anything from, as a
+-- set, or nil if sources have no __init__.py. sources are one directory's.
+function M.covered(sources)
+  local init = init_of(sources)
+  if not init then
+    return nil
+  end
+  local covered = { [init.path] = true }
+  -- What the default view shows decides it.
+  local comments, private = include_comments, include_private
+  include_comments, include_private = false, false
+  local _, targets = view(sources)
+  include_comments, include_private = comments, private
+  for _, target in pairs(targets) do
+    covered[target.file] = true
+  end
+  return covered
 end
 
 -- The sources the view of path's module covers, out of its directory's
 -- sources: the whole package if path is its __init__.py or __init__.py
 -- re-exports from it, else path alone. Empty if path is not among them.
 function M.select(sources, path)
-  local init = init_of(sources)
-  local own
+  local covered = M.covered(sources)
+  if covered and covered[path] then
+    return sources
+  end
   for _, source in ipairs(sources) do
     if source.path == path then
-      own = source
+      return { source }
     end
   end
-  if init and dirname(init.path) == dirname(path) then
-    if init.path == path then
-      return sources
-    end
-    -- Whether the package's default view shows anything from path.
-    local comments, private = include_comments, include_private
-    include_comments, include_private = false, false
-    local _, targets = view(sources)
-    include_comments, include_private = comments, private
-    for _, target in pairs(targets) do
-      if target.file == path then
-        return sources
-      end
-    end
-  end
-  return { own }
+  return {}
 end
 
 -- The files that make up the view of path's module, and the view's name: the

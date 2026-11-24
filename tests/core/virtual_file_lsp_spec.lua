@@ -75,6 +75,8 @@ describe("Virtual buffer LSP prevention", function()
 
     -- 3. filetype should be empty (prevents FileType autocmd)
     assert.are.equal("", vim.bo[buf].filetype, "filetype should be empty on virtual buffer")
+    -- The skeleton and API views read the filetype from here instead.
+    assert.are.equal("javascript", vim.b[buf].codediff_filetype)
 
     -- 4. TreeSitter should be active if parser is available
     -- (CI environments may not have all TreeSitter parsers installed)

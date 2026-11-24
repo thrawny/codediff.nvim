@@ -138,6 +138,15 @@ function M.setup_auto_refresh(explorer, tabpage)
     end)
   end
 
+  -- Switch to the API layout and back as the API view turns on and off.
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "CodeDiffModeChanged",
+    callback = function()
+      M.sync_api_layout(explorer)
+    end,
+  })
+
   -- Clean up on tab close
   vim.api.nvim_create_autocmd("TabClosed", {
     group = group,
@@ -236,6 +245,100 @@ local function restore_fold_state(tree, fold_state, root_nodes)
   end
 end
 
+-- Rebuild the tree from status_result, keeping the user's folds. fold_state
+-- defaults to the tree's current folds.
+function M.rebuild(explorer, status_result, fold_state)
+  fold_state = fold_state or collect_fold_state(explorer.tree)
+  local root_nodes = tree_module.create_tree_data(
+    status_result,
+    explorer.git_root,
+    explorer.base_revision,
+    not explorer.git_root,
+    explorer.visible_groups,
+    explorer.context_entries,
+    { api_layout = explorer.api_layout, target_revision = explorer.target_revision }
+  )
+
+  -- Expand groups unless they are intended to start collapsed.
+  for _, node in ipairs(root_nodes) do
+    if not (node.data and node.data.default_collapsed) then
+      node:expand()
+    end
+  end
+
+  explorer.tree:set_nodes(root_nodes)
+
+  -- For tree mode, expand directories after setting nodes
+  local explorer_config = config.options.explorer or {}
+  if explorer_config.view_mode == "tree" then
+    local function expand_all_dirs(parent_node)
+      if not parent_node:has_children() then
+        return
+      end
+      for _, child_id in ipairs(parent_node:get_child_ids()) do
+        local child = explorer.tree:get_node(child_id)
+        if child and child.data and child.data.type == "directory" and not child.data.default_collapsed then
+          child:expand()
+          expand_all_dirs(child)
+        end
+      end
+    end
+    for _, node in ipairs(root_nodes) do
+      expand_all_dirs(node)
+    end
+  end
+
+  -- Restore user's fold state (must be after expand_all_dirs)
+  restore_fold_state(explorer.tree, fold_state, root_nodes)
+
+  explorer.tree:render()
+end
+
+-- Switch the tree to the API layout while the session wants the API view,
+-- and back when it no longer does. Switching on selects the API entry of the
+-- current file's module, or the first API or test entry when the current
+-- file is in neither group.
+function M.sync_api_layout(explorer)
+  if not explorer.git_root or not explorer.status_result then
+    return
+  end
+  if not explorer.bufnr or not vim.api.nvim_buf_is_valid(explorer.bufnr) then
+    return
+  end
+  local session = require("codediff.ui.lifecycle").get_session(explorer.tabpage)
+  local want = session ~= nil and session.skeleton_want == "api"
+  if want == (explorer.api_layout == true) then
+    return
+  end
+  explorer.api_layout = want
+  M.rebuild(explorer, explorer.status_result)
+  if not want or not explorer.current_file_path then
+    return
+  end
+
+  local files = M.get_all_files(explorer.tree)
+  local target
+  for _, file in ipairs(files) do
+    local data = file.data
+    if data.group == explorer.current_file_group then
+      if data.path == explorer.current_file_path then
+        return
+      end
+      if data.api_files and vim.tbl_contains(data.api_files, explorer.current_file_path) then
+        target = data
+        break
+      end
+    end
+  end
+  -- Not found means the current file is outside the navigable groups. When
+  -- the API and Tests groups are empty every group is navigable, so the
+  -- current file is found and stays.
+  target = target or (files[1] and files[1].data)
+  if target then
+    explorer.on_file_select(target)
+  end
+end
+
 -- Refresh explorer with updated git status
 function M.refresh(explorer)
   local git = require("codediff.core.git")
@@ -254,44 +357,7 @@ function M.refresh(explorer)
         return
       end
 
-      -- Rebuild tree nodes using same structure as create_tree_data
-      local root_nodes =
-        tree_module.create_tree_data(status_result, explorer.git_root, explorer.base_revision, not explorer.git_root, explorer.visible_groups, explorer.context_entries)
-
-      -- Expand groups unless they are intended to start collapsed.
-      for _, node in ipairs(root_nodes) do
-        if not (node.data and node.data.default_collapsed) then
-          node:expand()
-        end
-      end
-
-      -- Update tree
-      explorer.tree:set_nodes(root_nodes)
-
-      -- For tree mode, expand directories after setting nodes
-      local explorer_config = config.options.explorer or {}
-      if explorer_config.view_mode == "tree" then
-        local function expand_all_dirs(parent_node)
-          if not parent_node:has_children() then
-            return
-          end
-          for _, child_id in ipairs(parent_node:get_child_ids()) do
-            local child = explorer.tree:get_node(child_id)
-            if child and child.data and child.data.type == "directory" and not child.data.default_collapsed then
-              child:expand()
-              expand_all_dirs(child)
-            end
-          end
-        end
-        for _, node in ipairs(root_nodes) do
-          expand_all_dirs(node)
-        end
-      end
-
-      -- Restore user's fold state (must be after expand_all_dirs)
-      restore_fold_state(explorer.tree, fold_state, root_nodes)
-
-      explorer.tree:render()
+      M.rebuild(explorer, status_result, fold_state)
 
       -- Update status result for file selection logic
       explorer.status_result = status_result
@@ -423,7 +489,10 @@ function M.get_all_files(tree)
 
   local nodes = tree:get_nodes()
   for _, group_node in ipairs(nodes) do
-    collect_files(group_node)
+    -- The API layout's other groups are left out of next and previous file.
+    if not (group_node.data and group_node.data.navigable == false) then
+      collect_files(group_node)
+    end
   end
 
   return files

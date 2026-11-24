@@ -180,10 +180,10 @@ Press `s` in a diff view to cycle the skeleton view through three states:
                   index.ts re-exports from the file. Each side reads every
                   file of the module at its own revision. Without git, it
                   covers the file only.
-                  A new module shows its API without diff markup.
+                  A new module shows its API without diff markup. A test
+                  file shows its normal diff.
                   Hunk navigation follows the API diff. Past the module's
-                  last hunk, next hunk or file goes to the next module,
-                  while next file still steps file by file.
+                  last hunk, next hunk or file goes to the next module.
                   `C` and `P` toggle comments and unexported declarations,
                   as in an API view. A module that exports nothing skips
                   this state with a message, unless unexported declarations
@@ -196,6 +196,23 @@ Press `a` to turn the API state on or off directly (`keymaps.view.toggle_api`).
 It stays on when you switch files. A file without an API view, such as a
 file in a language without one, shows its normal diff, and the winbar shows
 "Diff (API on)". The next file that has an API view shows it again.
+
+While the API state is on, the explorer lists the changes by API:
+
+  API             One entry per module whose API changed, named by its
+                  directory, or by its path for a module of one file.
+                  Selecting an entry shows the module's API diff.
+  Tests           The changed test files. Each shows its normal diff.
+                  Test files are `_test.go` files, pytest's `test_*.py`,
+                  `*_test.py` and `conftest.py`, TypeScript's `*.test.ts`
+                  and `*.spec.ts`, and any Python or TypeScript file under
+                  a `test`, `tests` or `__tests__` directory.
+  Changes         The usual groups, with every other file, including the
+                  files of modules whose API did not change.
+
+Next and previous file move through the API and Tests entries only, unless
+both groups are empty. Turning the API state on selects the entry for the
+current file's module, or the first entry if the current file has none.
 
 The skeleton view works in both layouts and stays on when you switch files.
 The winbar always shows the current mode: Diff, API or File. Enabling

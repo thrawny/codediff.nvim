@@ -430,8 +430,12 @@ function M.in_package(name)
   return name:match("%.go$") ~= nil and not name:match("_test%.go$")
 end
 
--- Which module a path belongs to: its directory, as given. A test file
--- counts too, since the API state shows its package.
+-- Whether path is a test file: a _test.go file.
+function M.is_test(path)
+  return path:match("_test%.go$") ~= nil
+end
+
+-- Which module a path belongs to: its directory, as given.
 function M.module_of(path)
   return vim.fn.fnamemodify(path, ":h")
 end

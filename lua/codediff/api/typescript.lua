@@ -598,38 +598,55 @@ local function view(sources)
   return lines, targets, #entries
 end
 
+-- Whether path is a test file: *.test.ts, *.spec.ts and their .tsx, .mts and
+-- .cts forms, or any TypeScript file under a __tests__, test or tests
+-- directory.
+function M.is_test(path)
+  local name = basename(path)
+  if not M.in_package(name) then
+    return false
+  end
+  return name:match("%.test%.[mc]?tsx?$") ~= nil or name:match("%.spec%.[mc]?tsx?$") ~= nil or ("/" .. path):match("/__tests__/") ~= nil or ("/" .. path):match("/tests?/") ~= nil
+end
+
 -- Whether a file name is part of a module's directory: a TypeScript file.
 function M.in_package(name)
   return name:match("%.[mc]?ts$") ~= nil or name:match("%.tsx$") ~= nil
+end
+
+-- The paths of sources that the barrel's view shows anything from, as a
+-- set, or nil if sources have no index.ts. sources are one directory's.
+function M.covered(sources)
+  local barrel = barrel_of(sources)
+  if not barrel then
+    return nil
+  end
+  local covered = { [barrel.path] = true }
+  -- What the default view shows decides it.
+  local comments, private = include_comments, include_private
+  include_comments, include_private = false, false
+  local _, targets = view(sources)
+  include_comments, include_private = comments, private
+  for _, target in pairs(targets) do
+    covered[target.file] = true
+  end
+  return covered
 end
 
 -- The sources the view of path's module covers, out of its directory's
 -- sources: the whole directory if path is its index.ts or index.ts re-exports
 -- from it, else path alone. Empty if path is not among them.
 function M.select(sources, path)
-  local barrel = barrel_of(sources)
-  local own
+  local covered = M.covered(sources)
+  if covered and covered[path] then
+    return sources
+  end
   for _, source in ipairs(sources) do
     if source.path == path then
-      own = source
+      return { source }
     end
   end
-  if barrel and dirname(barrel.path) == dirname(path) then
-    if barrel.path == path then
-      return sources
-    end
-    -- Whether the barrel's default view shows anything from path.
-    local comments, private = include_comments, include_private
-    include_comments, include_private = false, false
-    local _, targets = view(sources)
-    include_comments, include_private = comments, private
-    for _, target in pairs(targets) do
-      if target.file == path then
-        return sources
-      end
-    end
-  end
-  return { own }
+  return {}
 end
 
 -- The files that make up the view of path's module, and the view's name: the

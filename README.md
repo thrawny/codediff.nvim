@@ -44,7 +44,7 @@ With lazy.nvim:
 :Api toggle                 " open Go, Python and TypeScript files as their module's API view
 ```
 
-In a diff, `]c`/`[c` move between changes, `t` switches layout, `s` cycles the skeleton view, `a` toggles the API view and `g?` lists every keymap. The winbar always shows the current mode: Diff, API or File.
+In a diff, `]c`/`[c` move between changes, `t` switches layout, `s` cycles the skeleton view, `a` toggles the API view and `g?` lists every keymap. The winbar always shows the current mode: Diff, API or File. With the API view on, the explorer lists one entry per module whose API changed, then the changed tests. Next and previous file move through only those.
 
 `:help codediff` documents every command, option, highlight group and event.
 

@@ -112,6 +112,46 @@ function M.create_file_nodes(files, git_root, group)
   return nodes
 end
 
+-- Create the API layout's module entries, one per module whose API changed.
+-- modules are { label, files, group }, as api.sort_changes returns them with
+-- their explorer group added. An entry selects the module's first changed
+-- file, whose API view shows the whole module.
+function M.create_api_nodes(modules, git_root)
+  local nodes = {}
+  for _, module in ipairs(modules) do
+    local file = module.files[1]
+    local status = file.status
+    local paths = {}
+    for _, f in ipairs(module.files) do
+      paths[#paths + 1] = f.path
+      if f.status ~= status then
+        status = "M"
+      end
+    end
+    local label = module.group == "staged" and module.label .. " (staged)" or module.label
+    local icon, icon_color = M.get_file_icon(file.path)
+    local status_info = STATUS_SYMBOLS[status] or { symbol = status, color = "Normal" }
+
+    nodes[#nodes + 1] = Tree.Node({
+      text = label,
+      data = {
+        path = file.path,
+        status = file.status,
+        old_path = file.old_path,
+        icon = icon,
+        icon_color = icon_color,
+        status_symbol = status_info.symbol,
+        status_color = status_info.color,
+        git_root = git_root,
+        group = module.group,
+        api_label = label,
+        api_files = paths,
+      },
+    })
+  end
+  return nodes
+end
+
 -- Create context nodes (PR description, Jira ticket) shown above the changes
 function M.create_context_nodes(entries)
   local nodes = {}
@@ -349,8 +389,9 @@ function M.prepare_node(node, max_width, selected_path, selected_group)
       return combined_name
     end
 
-    -- Check if we're in tree mode (directory is already shown in hierarchy)
-    local view_mode = explorer_config.view_mode or "list"
+    -- Check if we're in tree mode (directory is already shown in hierarchy).
+    -- A module entry of the API layout always shows its whole label.
+    local view_mode = data.api_label and "list" or explorer_config.view_mode or "list"
 
     -- File entry - VSCode style: filename (bold) + directory (dimmed) + status (right-aligned)
     local indent
@@ -374,8 +415,8 @@ function M.prepare_node(node, max_width, selected_path, selected_group)
     local status_symbol = data.status_symbol or ""
 
     -- Split path into filename and directory
-    local full_path = data.path or node.text
-    local filename = full_path:match("([^/]+)$") or full_path
+    local full_path = data.api_label or data.path or node.text
+    local filename = full_path:match("([^/]+/?)$") or full_path
     -- In tree mode, don't show directory (it's in the hierarchy)
     local directory = (view_mode == "tree") and "" or full_path:sub(1, -(#filename + 1))
 

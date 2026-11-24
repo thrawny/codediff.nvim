@@ -293,3 +293,42 @@ describe("Python API module sources", function()
     vim.fn.delete(root, "rf")
   end)
 end)
+
+describe("Python API layout sorting", function()
+  it("lists a package view once, and a file outside it on its own", function()
+    local root = vim.fn.resolve(vim.fn.tempname())
+    local function git(args)
+      vim.fn.system(vim.list_extend({ "git", "-C", root }, args))
+    end
+    write(root .. "/shop", {
+      ["__init__.py"] = { "from .server import start" },
+      ["server.py"] = { "def start(): pass" },
+      ["util.py"] = { "def fmt(): pass" },
+    })
+    git({ "init", "-q" })
+    git({ "add", "." })
+    git({ "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "base" })
+    vim.fn.writefile({ "from .server import start, stop" }, root .. "/shop/__init__.py")
+    vim.fn.writefile({ "def start(port): pass", "def stop(): pass" }, root .. "/shop/server.py")
+    vim.fn.writefile({ "def fmt(value): pass" }, root .. "/shop/util.py")
+
+    local files = {
+      { path = "shop/__init__.py", status = "M" },
+      { path = "shop/server.py", status = "M" },
+      { path = "shop/util.py", status = "M" },
+    }
+    local modules, tests, rest = api.sort_changes(root, files, function()
+      return "HEAD", nil
+    end)
+    assert.are.same(
+      { "shop/", "shop/util.py" },
+      vim.tbl_map(function(m)
+        return m.label
+      end, modules)
+    )
+    assert.are.same({ files[1], files[2] }, modules[1].files)
+    assert.are.same({}, tests)
+    assert.are.same({}, rest)
+    vim.fn.delete(root, "rf")
+  end)
+end)

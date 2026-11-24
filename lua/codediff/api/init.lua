@@ -298,41 +298,107 @@ local function git(git_root, args, stdin)
   return result.code == 0 and result.stdout or nil
 end
 
--- The sources of the language's files in rel_path's directory, at a revision,
--- as module_sources returns them.
-local function directory_sources(git_root, revision, rel_path, language)
-  local rel_dir = vim.fn.fnamemodify(rel_path, ":h")
-  local prefix = rel_dir == "." and "" or rel_dir .. "/"
-  local sources = {}
+-- Results of slow work on sources, by a hash of the work and the sources, so
+-- an explorer refresh over unchanged files does not parse them again.
+local results = {}
+local result_count = 0
+local MAX_RESULTS = 4000
+
+-- The files read_directories found in a directory at a commit, by commit and
+-- directory.
+local commit_files = {}
+local commit_count = 0
+
+local function cached(kind, language, sources, compute)
+  local parts = { kind, language.filetype }
+  for _, source in ipairs(sources) do
+    parts[#parts + 1] = source.path
+    parts[#parts + 1] = source.text
+  end
+  local key = vim.fn.sha256(table.concat(parts, "\0"))
+  local hit = results[key]
+  if hit == nil then
+    if result_count >= MAX_RESULTS then
+      results, result_count = {}, 0
+    end
+    -- false stands for a nil result.
+    hit = compute()
+    if hit == nil then
+      hit = false
+    end
+    results[key] = hit
+    result_count = result_count + 1
+  end
+  return hit or nil
+end
+
+-- The files directly in each of rel_dirs at a revision that keep(path) is
+-- true for, as { [rel_dir] = { { path, text }, ... } } with absolute paths.
+-- rel_dirs are relative to git_root, with "." for the root. A revision reads
+-- every directory with one listing and one git cat-file call.
+local function read_directories(git_root, revision, rel_dirs, keep)
+  local found = {}
+  for _, rel_dir in ipairs(rel_dirs) do
+    found[rel_dir] = {}
+  end
+  local function prefix_of(rel_dir)
+    return rel_dir == "." and "" or rel_dir .. "/"
+  end
 
   if revision == nil or revision == "WORKING" then
-    for _, file in ipairs(vim.fn.glob(git_root .. "/" .. prefix .. "*", false, true)) do
-      if language.in_package(file) and vim.fn.filereadable(file) == 1 then
-        sources[#sources + 1] = { path = file, text = table.concat(vim.fn.readfile(file), "\n") }
+    for _, rel_dir in ipairs(rel_dirs) do
+      for _, file in ipairs(vim.fn.glob(git_root .. "/" .. prefix_of(rel_dir) .. "*", false, true)) do
+        if keep(file) and vim.fn.filereadable(file) == 1 then
+          table.insert(found[rel_dir], { path = file, text = table.concat(vim.fn.readfile(file), "\n") })
+        end
       end
     end
-    return sources
+    return found
   end
 
-  -- List the directory's blobs at the revision, then read them all in one
-  -- git cat-file call.
-  local listing
+  -- A commit never changes, so its directories are read once.
+  local commit = revision ~= ":0" and revision ~= "STAGED" and revision:match("^%x+$") and #revision == 40
+  local to_read = rel_dirs
+  if commit then
+    to_read = {}
+    for _, rel_dir in ipairs(rel_dirs) do
+      local hit = commit_files[revision .. "\0" .. rel_dir]
+      if hit then
+        found[rel_dir] = vim.tbl_filter(function(file)
+          return keep(file.path)
+        end, hit)
+      else
+        to_read[#to_read + 1] = rel_dir
+      end
+    end
+    if #to_read == 0 then
+      return found
+    end
+  end
+
+  local args
   if revision == ":0" or revision == "STAGED" then
-    listing = git(git_root, { "ls-files", "-s", "--", prefix })
+    args = { "ls-files", "-s", "--" }
   else
-    listing = git(git_root, { "ls-tree", revision, "--", prefix })
+    args = { "ls-tree", revision, "--" }
+  end
+  for _, rel_dir in ipairs(to_read) do
+    -- git rejects an empty pathspec, so the root is ".".
+    args[#args + 1] = rel_dir == "." and "." or prefix_of(rel_dir)
   end
   local blobs = {}
-  for line in (listing or ""):gmatch("[^\n]+") do
+  for line in (git(git_root, args) or ""):gmatch("[^\n]+") do
     -- ls-files: "<mode> <sha> <stage>\t<path>", ls-tree: "<mode> blob <sha>\t<path>"
     local meta, path = line:match("^(.-)\t(.+)$")
-    local sha = meta and meta:match("(%x%x%x%x%x%x%x+)")
-    if sha and path:find("/", #prefix + 1, true) == nil and language.in_package(path) then
-      blobs[#blobs + 1] = { sha = sha, path = path }
+    local sha = meta and not meta:find(" tree ", 1, true) and meta:match("(%x%x%x%x%x%x%x+)")
+    -- ls-files lists subdirectories' files too, so take each file's own directory.
+    local rel_dir = path and vim.fn.fnamemodify(path, ":h")
+    if sha and found[rel_dir] and keep(path) then
+      blobs[#blobs + 1] = { sha = sha, path = path, rel_dir = rel_dir }
     end
   end
   if #blobs == 0 then
-    return sources
+    return found
   end
 
   local stdin = table.concat(
@@ -352,10 +418,19 @@ local function directory_sources(git_root, revision, rel_path, language)
     if not size then
       break
     end
-    sources[#sources + 1] = { path = git_root .. "/" .. blob.path, text = out:sub(header_end + 1, header_end + size) }
+    table.insert(found[blob.rel_dir], { path = git_root .. "/" .. blob.path, text = out:sub(header_end + 1, header_end + size) })
     pos = header_end + size + 2
   end
-  return sources
+  if commit then
+    if commit_count + #to_read > MAX_RESULTS then
+      commit_files, commit_count = {}, 0
+    end
+    for _, rel_dir in ipairs(to_read) do
+      commit_files[revision .. "\0" .. rel_dir] = found[rel_dir]
+      commit_count = commit_count + 1
+    end
+  end
+  return found
 end
 
 -- The sources of the module that holds rel_path, at a revision, as extract
@@ -364,12 +439,170 @@ end
 -- disk. Returns an empty list if the module has no files at that revision. A
 -- language whose module can be less than its directory, such as one Python
 -- file, picks the module's sources out of the directory's with select.
-function M.module_sources(git_root, revision, rel_path, language)
-  local sources = directory_sources(git_root, revision, rel_path, language)
-  if language.select then
-    return language.select(sources, git_root .. "/" .. rel_path)
+-- directories, if given, holds the files read_directories found, by revision
+-- then directory, and is read from instead of git where it has the directory.
+-- It also keeps each directory's sources and covered set for the next call.
+function M.module_sources(git_root, revision, rel_path, language, directories)
+  local rel_dir = vim.fn.fnamemodify(rel_path, ":h")
+  local key = table.concat({ language.filetype, revision or "WORKING", rel_dir }, "\0")
+  local memo = directories and directories[key]
+  if not memo then
+    local files = directories and directories[revision or "WORKING"] and directories[revision or "WORKING"][rel_dir]
+    if not files then
+      files = read_directories(git_root, revision, { rel_dir }, language.in_package)[rel_dir]
+    end
+    local sources = vim.tbl_filter(function(source)
+      return language.in_package(source.path)
+    end, files)
+    local covered = language.covered and cached("covered", language, sources, function()
+      return language.covered(sources)
+    end)
+    memo = { sources = sources, covered = covered }
+    if directories then
+      directories[key] = memo
+    end
   end
-  return sources
+  -- Go's module is the whole directory.
+  if not language.covered then
+    return memo.sources
+  end
+  local path = git_root .. "/" .. rel_path
+  if memo.covered and memo.covered[path] then
+    return memo.sources
+  end
+  for _, source in ipairs(memo.sources) do
+    if source.path == path then
+      return { source }
+    end
+  end
+  return {}
+end
+
+-- Whether path is a test file of a language with an API view.
+function M.is_test(path)
+  local language = language_of(path)
+  return language ~= nil and language.is_test(path)
+end
+
+-- Sort changed files for the explorer's API layout. files are explorer
+-- entries { path, old_path, status }, with paths relative to git_root.
+-- revisions(file) returns the revisions to read the file's module at, old
+-- side then new side, as module_sources takes them. Returns:
+--   modules  one entry per module whose API differs between the revisions,
+--            as { label, files }, where files are its changed files in the
+--            order given. label is the module's directory with a trailing
+--            slash, or the file's path for a module of one file.
+--   tests    the test files of languages with an API view.
+--   rest     every other file, including the files of modules whose API is
+--            the same on both sides.
+function M.sort_changes(git_root, files, revisions)
+  local opts = { comments = M.comments_shown(), private = M.private_shown() }
+
+  -- Look each file's language up once.
+  local languages_of = {}
+  local function lang(path)
+    if languages_of[path] == nil then
+      languages_of[path] = language_of(path) or false
+    end
+    return languages_of[path] or nil
+  end
+
+  -- A commit read by its hash is read from the cache on the next sort. The
+  -- index and the working tree are read each time.
+  local hashes = {}
+  local function resolve(revision)
+    if revision == nil or revision == "WORKING" or revision == ":0" or revision == "STAGED" then
+      return revision
+    end
+    if hashes[revision] == nil then
+      hashes[revision] = vim.trim(git(git_root, { "rev-parse", "--verify", "--quiet", revision .. "^{commit}" }) or "")
+    end
+    return hashes[revision] ~= "" and hashes[revision] or revision
+  end
+
+  -- Read every directory a module comes from in one go per revision.
+  local wanted, revision_order = {}, {}
+  local function want(revision, path)
+    local key = revision or "WORKING"
+    if not wanted[key] then
+      wanted[key] = { revision = revision, dirs = {}, seen = {} }
+      revision_order[#revision_order + 1] = key
+    end
+    local rel_dir = vim.fn.fnamemodify(path, ":h")
+    if not wanted[key].seen[rel_dir] then
+      wanted[key].seen[rel_dir] = true
+      table.insert(wanted[key].dirs, rel_dir)
+    end
+  end
+  for _, file in ipairs(files) do
+    local language = lang(file.path)
+    if language and not language.is_test(file.path) then
+      local old_revision, new_revision = revisions(file)
+      want(resolve(old_revision), file.old_path or file.path)
+      want(resolve(new_revision), file.path)
+    end
+  end
+  local directories = {}
+  local function source_file(path)
+    return lang(path) ~= nil
+  end
+  for _, key in ipairs(revision_order) do
+    directories[key] = read_directories(git_root, wanted[key].revision, wanted[key].dirs, source_file)
+  end
+
+  local by_key, order, module_of_file, tests, test_set = {}, {}, {}, {}, {}
+
+  for _, file in ipairs(files) do
+    local language = lang(file.path)
+    if language and language.is_test(file.path) then
+      tests[#tests + 1] = file
+      test_set[file] = true
+    elseif language then
+      local old_revision, new_revision = revisions(file)
+      old_revision, new_revision = resolve(old_revision), resolve(new_revision)
+      local added = file.status == "A" or file.status == "??"
+      local old_sources = added and {} or M.module_sources(git_root, old_revision, file.old_path or file.path, language, directories)
+      local new_sources = file.status == "D" and {} or M.module_sources(git_root, new_revision, file.path, language, directories)
+      -- Go's module is the directory. A Python package view or TypeScript
+      -- barrel view covers more than one file of the directory.
+      local dir = vim.fn.fnamemodify(file.path, ":h")
+      local whole_dir = language.module_of ~= nil or #old_sources > 1 or #new_sources > 1
+      local key = language.filetype .. "\0" .. (whole_dir and dir or file.path)
+      local module = by_key[key]
+      if not module then
+        local kind = string.format("extract:%s:%s", opts.comments, opts.private)
+        local function lines_of(sources)
+          return cached(kind, language, sources, function()
+            return (language.extract(sources, opts))
+          end) or {}
+        end
+        local old_lines, new_lines = lines_of(old_sources), lines_of(new_sources)
+        module = {
+          label = whole_dir and (dir == "." and "./" or dir .. "/") or file.path,
+          files = {},
+          changed = not vim.deep_equal(old_lines, new_lines),
+        }
+        by_key[key] = module
+        order[#order + 1] = module
+      end
+      module.files[#module.files + 1] = file
+      module_of_file[file] = module
+    end
+  end
+
+  local modules, rest = {}, {}
+  for _, module in ipairs(order) do
+    if module.changed then
+      modules[#modules + 1] = { label = module.label, files = module.files }
+    end
+  end
+  for _, file in ipairs(files) do
+    local module = module_of_file[file]
+    if not test_set[file] and not (module and module.changed) then
+      rest[#rest + 1] = file
+    end
+  end
+  return modules, tests, rest
 end
 
 local function configured(name)

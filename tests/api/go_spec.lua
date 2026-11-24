@@ -300,4 +300,91 @@ describe("API module sources", function()
     assert.are.same({ "package shop", "", "func New()", "func B()" }, apis(nil))
     vim.fn.delete(root, "rf")
   end)
+
+  it("reads a package in the repository root at a commit", function()
+    local root = vim.fn.resolve(vim.fn.tempname())
+    vim.fn.mkdir(root, "p")
+    vim.fn.system({ "git", "-C", root, "init", "-q" })
+    vim.fn.writefile({ "package main", "", "func Run() {}" }, root .. "/main.go")
+    vim.fn.system({ "git", "-C", root, "add", "." })
+    vim.fn.system({ "git", "-C", root, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "base" })
+    assert.are.same({ "package main", "", "func Run()" }, go.extract(api.module_sources(root, "HEAD", "main.go", go), { comments = false }))
+    vim.fn.delete(root, "rf")
+  end)
+end)
+
+describe("API layout sorting", function()
+  local function commit_all(root)
+    for _, args in ipairs({ { "add", "." }, { "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "c" } }) do
+      vim.fn.system(vim.list_extend({ "git", "-C", root }, args))
+    end
+  end
+
+  it("lists each Go package whose API changed once, and sorts tests and the rest out", function()
+    local root = vim.fn.resolve(vim.fn.tempname())
+    vim.fn.mkdir(root .. "/shop", "p")
+    vim.fn.mkdir(root .. "/cart", "p")
+    vim.fn.system({ "git", "-C", root, "init", "-q" })
+    vim.fn.writefile({ "package shop", "", "func New() {}" }, root .. "/shop/shop.go")
+    vim.fn.writefile({ "package shop", "", "func helper() int { return 1 }" }, root .. "/shop/util.go")
+    vim.fn.writefile({ "package shop" }, root .. "/shop/shop_test.go")
+    vim.fn.writefile({ "package cart", "", "func Add() int { return 1 }" }, root .. "/cart/cart.go")
+    commit_all(root)
+    vim.fn.writefile({ "package shop", "", "func New(name string) {}" }, root .. "/shop/shop.go")
+    vim.fn.writefile({ "package shop", "", "func helper() int { return 2 }" }, root .. "/shop/util.go")
+    vim.fn.writefile({ "package shop", "", "func TestNew() {}" }, root .. "/shop/shop_test.go")
+    vim.fn.writefile({ "package cart", "", "func Add() int { return 2 }" }, root .. "/cart/cart.go")
+
+    local files = {
+      { path = "README.md", status = "M" },
+      { path = "cart/cart.go", status = "M" },
+      { path = "shop/shop.go", status = "M" },
+      { path = "shop/shop_test.go", status = "M" },
+      { path = "shop/util.go", status = "M" },
+    }
+    local modules, tests, rest = api.sort_changes(root, files, function()
+      return "HEAD", nil
+    end)
+    assert.equals(1, #modules)
+    assert.equals("shop/", modules[1].label)
+    assert.are.same(
+      { "shop/shop.go", "shop/util.go" },
+      vim.tbl_map(function(f)
+        return f.path
+      end, modules[1].files)
+    )
+    assert.are.same({ files[4] }, tests)
+    -- cart changed only inside a function body.
+    assert.are.same({ files[1], files[2] }, rest)
+    vim.fn.delete(root, "rf")
+  end)
+
+  it("counts an added package as an API change", function()
+    local root = vim.fn.resolve(vim.fn.tempname())
+    vim.fn.mkdir(root .. "/shop", "p")
+    vim.fn.system({ "git", "-C", root, "init", "-q" })
+    vim.fn.writefile({ "hello" }, root .. "/README.md")
+    commit_all(root)
+    vim.fn.writefile({ "package shop", "", "func New() {}" }, root .. "/shop/shop.go")
+    local modules = api.sort_changes(root, { { path = "shop/shop.go", status = "??" } }, function()
+      return ":0", nil
+    end)
+    assert.equals(1, #modules)
+    vim.fn.delete(root, "rf")
+  end)
+
+  it("knows the test files of each language", function()
+    assert.is_true(api.is_test("shop/shop_test.go"))
+    assert.is_false(api.is_test("shop/shop.go"))
+    assert.is_true(api.is_test("shop/test_server.py"))
+    assert.is_true(api.is_test("shop/server_test.py"))
+    assert.is_true(api.is_test("tests/conftest.py"))
+    assert.is_true(api.is_test("tests/helpers.py"))
+    assert.is_false(api.is_test("shop/server.py"))
+    assert.is_true(api.is_test("src/server.test.ts"))
+    assert.is_true(api.is_test("src/server.spec.tsx"))
+    assert.is_true(api.is_test("src/__tests__/server.ts"))
+    assert.is_false(api.is_test("src/server.ts"))
+    assert.is_false(api.is_test("tests/fixture.txt"))
+  end)
 end)

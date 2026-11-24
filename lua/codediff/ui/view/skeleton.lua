@@ -685,7 +685,7 @@ function M.same_api_module(session)
     return nil
   end
   return function(file_data)
-    if not file_data.path then
+    if not file_data.path or module.language.is_test(file_data.path) then
       return false
     end
     -- A language without module_of, such as Python, whose module depends on
@@ -756,6 +756,11 @@ local function enable_api(session, tabpage, silent)
     return path
   end
   local rel_path = relative(session.modified_path) or relative(session.original_path)
+  -- A test file has no API of its own, so it shows its diff.
+  if rel_path and language.is_test(rel_path) then
+    notify(silent, "Skeleton view: a test file has no API view", vim.log.levels.INFO)
+    return false
+  end
 
   local original_lines, modified_lines, scope
   -- The files either side of a module's view shows lines from.
