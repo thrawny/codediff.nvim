@@ -240,6 +240,38 @@ describe("computeLinesDiff", () => {
     expect(result.changes[1]!.modified).toEqual({ start_line: 4, end_line: 5 });
   });
 
+  it("keeps a replaced block as one change when a new line resembles the old one", () => {
+    const result = computeLinesDiff(
+      ["function f()", "  return file.path ~= nil and module_of(file.path) == key", "end"],
+      [
+        "function f()",
+        "  if not file.path then",
+        "    return false",
+        "  end",
+        "  return module_of(file.path) == key",
+        "end",
+      ],
+    );
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0]!.original).toEqual({ start_line: 2, end_line: 3 });
+    expect(result.changes[0]!.modified).toEqual({ start_line: 2, end_line: 6 });
+  });
+
+  it("diffs two unrelated 5,000-line files within the time limit", () => {
+    const randomLines = (seed: number) =>
+      Array.from({ length: 5_000 }, () => {
+        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        return `line ${seed % 1_000_000}`;
+      });
+    // jsdiff needs about 4 seconds here and @pierre/patches under 100 ms, so
+    // this fails if the line diff falls back to jsdiff.
+    const result = computeLinesDiff(randomLines(1), randomLines(2), {
+      max_computation_time_ms: 1000,
+    });
+    expect(result.hit_timeout).toBe(false);
+    expect(result.changes.length).toBeGreaterThan(1);
+  });
+
   it("treats non-array input as empty", () => {
     const result = computeLinesDiff({}, {});
     expect(result.changes).toHaveLength(0);

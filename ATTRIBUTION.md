@@ -13,12 +13,19 @@ This project includes code from or is derived from the following open source pro
 **Location**: `engine/` (installed via `bun install`)  
 **Purpose**: Diff parsing and hunk model — the same diff core used by [Hunk](https://github.com/modem-dev/hunk)
 
+### @pierre/patches
+
+**License**: Apache License 2.0  
+**Source**: https://www.npmjs.com/package/@pierre/patches  
+**Location**: `engine/` (installed via `bun install`)  
+**Purpose**: Line diffs and word-level inner diffs. It is a WebAssembly port of jsdiff with the same output.
+
 ### jsdiff (`diff`)
 
 **License**: BSD 3-Clause License  
 **Source**: https://github.com/kpdecker/jsdiff  
-**Location**: `engine/` (installed via `bun install`)  
-**Purpose**: Unified patch generation and word-level inner diffs
+**Location**: `engine/` (a dependency of `@pierre/diffs`)  
+**Purpose**: Line diffs when WebAssembly cannot run
 
 ---
 

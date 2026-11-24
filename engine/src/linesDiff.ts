@@ -1,17 +1,15 @@
 // Pierre-based replacement for the old libvscode-diff C library.
 //
 // Computes a vscode-style LinesDiff from two arrays of lines using
-// @pierre/diffs (the same diff core Hunk is built on). The output shape
+// @pierre/diffs (the same diff core Hunk is built on), with the line and
+// word diffs run by @pierre/patches, a WebAssembly port of jsdiff that
+// gives the same output several times faster. The output shape
 // matches what the Lua side of codediff.nvim has always consumed:
 // line ranges are 1-based with exclusive ends, char columns are 1-based
 // UTF-16 columns (the Lua renderer converts them to byte columns).
 
-import {
-  parseDiffFromFile,
-  type CreatePatchOptionsNonabortable,
-  type FileDiffMetadata,
-} from "@pierre/diffs";
-import { diffWordsWithSpace } from "diff";
+import { parseDiffFromFile, type ParseDiffOptions, type FileDiffMetadata } from "@pierre/diffs";
+import { diffWordsWithSpace } from "@pierre/patches";
 
 export interface LineRange {
   start_line: number; // 1-based, inclusive
@@ -150,8 +148,7 @@ function computeInnerChanges(
     return [];
   }
 
-  const remaining = state.deadline - Date.now();
-  if (remaining <= 0) {
+  if (Date.now() >= state.deadline) {
     state.hitTimeout = true;
     return [wholeBlockMapping(origLines, modLines, origStartLine, modStartLine)];
   }
@@ -166,11 +163,7 @@ function computeInnerChanges(
   // Word-level granularity matches Hunk's Pierre rendering (lineDiffType
   // "word-alt") and avoids the scattered single-char matches raw char diffs
   // produce, which fragment syntax token highlights downstream.
-  const parts = diffWordsWithSpace(origText, modText, { timeout: remaining });
-  if (!parts) {
-    state.hitTimeout = true;
-    return [wholeBlockMapping(origLines, modLines, origStartLine, modStartLine)];
-  }
+  const parts = diffWordsWithSpace(origText, modText);
 
   let removedChars = 0;
   let addedChars = 0;
@@ -199,7 +192,7 @@ function computeInnerChanges(
       continue;
     }
 
-    // jsdiff emits a removal immediately followed by its paired addition.
+    // The word diff emits a removal immediately followed by its paired addition.
     let removedRange: CharRange;
     if (part.removed) {
       const start = { ...origPos };
@@ -368,6 +361,48 @@ function toArray(lines: unknown): string[] {
   return [];
 }
 
+// Runs the line diff on @pierre/patches, which has no timeout and rejects the
+// option. If it fails, such as when WebAssembly cannot run, retry on jsdiff,
+// which aborts at the timeout. Returns undefined when jsdiff times out.
+function parseLineDiff(
+  original: string,
+  modified: string,
+  ignoreWhitespace: boolean,
+  timeoutMs: number,
+): FileDiffMetadata | undefined {
+  const oldFile = { name: "original", contents: original };
+  const newFile = { name: "modified", contents: modified };
+  const options: ParseDiffOptions = {
+    context: 0,
+    ignoreWhitespace,
+    // Pierre otherwise splits a change block to pair similar lines, which
+    // leaves adjacent changes with no unchanged line between them.
+    disableLineMatching: true,
+  };
+  try {
+    return parseDiffFromFile(
+      oldFile,
+      newFile,
+      { ...options, preferredDiffLib: "@pierre/patches" },
+      true,
+    );
+  } catch {
+    // Fall through to jsdiff.
+  }
+  try {
+    return parseDiffFromFile(
+      oldFile,
+      newFile,
+      // Pierre's types leave out jsdiff's `timeout`, but it passes through at
+      // runtime: on expiry the patch comes back undefined and Pierre throws.
+      { ...options, preferredDiffLib: "jsdiff", timeout: timeoutMs } as ParseDiffOptions,
+      true,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 export function computeLinesDiff(
   originalInput: unknown,
   modifiedInput: unknown,
@@ -391,24 +426,15 @@ export function computeLinesDiff(
   // mid-file occurrences and merges hunks that should stay separate.
   const toContents = (lines: string[]) => (lines.length > 0 ? `${lines.join("\n")}\n` : "");
 
-  // The timeout passes through to jsdiff's line-level Myers. On expiry it
-  // aborts and parseDiffFromFile throws; degrade to a single whole-file
-  // change like vscode's trivial-diff fallback rather than hanging.
-  let metadata: FileDiffMetadata;
-  try {
-    // Pierre's signature only admits non-abortable jsdiff options, but
-    // `timeout` passes through to diffLines at runtime; on expiry the patch
-    // comes back undefined and parseDiffFromFile throws.
-    metadata = parseDiffFromFile(
-      { name: "original", contents: toContents(comparedOriginal) },
-      { name: "modified", contents: toContents(comparedModified) },
-      {
-        context: 0,
-        ignoreWhitespace: ignoreTrimWhitespace,
-        timeout: timeoutMs,
-      } as CreatePatchOptionsNonabortable,
-    );
-  } catch {
+  const metadata = parseLineDiff(
+    toContents(comparedOriginal),
+    toContents(comparedModified),
+    ignoreTrimWhitespace,
+    timeoutMs,
+  );
+  if (!metadata) {
+    // Degrade to a single whole-file change like vscode's trivial-diff
+    // fallback rather than hanging.
     return {
       changes: [
         {

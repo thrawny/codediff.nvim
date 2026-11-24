@@ -15,13 +15,13 @@
     "lint:fix": "oxlint src --fix"
   },
   "dependencies": {
-    "@pierre/diffs": "1.2.2",
-    "diff": "^8.0.3"
+    "@pierre/diffs": "1.7.1",
+    "@pierre/patches": "0.0.1"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.13",
-    "oxfmt": "^0.41.0",
-    "oxlint": "^1.56.0",
-    "typescript": "^5.9.3"
+    "@types/bun": "^1.4.5",
+    "oxfmt": "^0.80.0",
+    "oxlint": "^1.95.0",
+    "typescript": "^7.0.2"
   }
 }
