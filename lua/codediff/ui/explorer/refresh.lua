@@ -295,9 +295,8 @@ function M.rebuild(explorer, status_result, fold_state)
 end
 
 -- Switch the tree to the API layout while the session wants the API view,
--- and back when it no longer does. Switching on selects the API entry of the
--- current file's module, or the first API or test entry when the current
--- file is in neither group.
+-- and back when it no longer does. Switching on selects the module entry of
+-- the current file's module, if it has one.
 function M.sync_api_layout(explorer)
   if not explorer.git_root or not explorer.status_result then
     return
@@ -316,25 +315,11 @@ function M.sync_api_layout(explorer)
     return
   end
 
+  -- Select the entry that now shows the current file, if it is a module's.
   local files = M.get_all_files(explorer.tree)
-  local target
-  for _, file in ipairs(files) do
-    local data = file.data
-    if data.group == explorer.current_file_group then
-      if data.path == explorer.current_file_path then
-        return
-      end
-      if data.api_files and vim.tbl_contains(data.api_files, explorer.current_file_path) then
-        target = data
-        break
-      end
-    end
-  end
-  -- Not found means the current file is outside the navigable groups. When
-  -- the API and Tests groups are empty every group is navigable, so the
-  -- current file is found and stays.
-  target = target or (files[1] and files[1].data)
-  if target then
+  local index = M.file_index(files, explorer.current_file_path, explorer.current_file_group)
+  local target = index and files[index].data
+  if target and target.path ~= explorer.current_file_path then
     explorer.on_file_select(target)
   end
 end
@@ -489,13 +474,23 @@ function M.get_all_files(tree)
 
   local nodes = tree:get_nodes()
   for _, group_node in ipairs(nodes) do
-    -- The API layout's other groups are left out of next and previous file.
-    if not (group_node.data and group_node.data.navigable == false) then
-      collect_files(group_node)
-    end
+    collect_files(group_node)
   end
 
   return files
+end
+
+-- The index in files, as get_all_files returns them, of the entry that shows
+-- path: the file's own entry, or the module entry of the API layout that
+-- covers it. group, if given, must match too. Returns nil if none does.
+function M.file_index(files, path, group)
+  for i, file in ipairs(files) do
+    local data = file.data
+    if (group == nil or data.group == group) and (data.path == path or (data.api_files and vim.tbl_contains(data.api_files, path))) then
+      return i
+    end
+  end
+  return nil
 end
 
 return M

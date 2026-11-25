@@ -57,13 +57,7 @@ function M.navigate_next(explorer, skip)
   end
 
   -- Find current index (match both path AND group for files in both staged/unstaged)
-  local current_index = 0
-  for i, file in ipairs(all_files) do
-    if file.data.path == current_path and file.data.group == current_group then
-      current_index = i
-      break
-    end
-  end
+  local current_index = refresh_module.file_index(all_files, current_path, current_group) or 0
 
   -- Get next file (wrap around if enabled)
   if current_index >= #all_files and not config.options.diff.cycle_next_file then
@@ -118,13 +112,7 @@ function M.navigate_prev(explorer, skip)
   end
 
   -- Find current index (match both path AND group for files in both staged/unstaged)
-  local current_index = 0
-  for i, file in ipairs(all_files) do
-    if file.data.path == current_path and file.data.group == current_group then
-      current_index = i
-      break
-    end
-  end
+  local current_index = refresh_module.file_index(all_files, current_path, current_group) or 0
 
   -- Get previous file (wrap around if enabled)
   if current_index <= 1 and not config.options.diff.cycle_next_file then

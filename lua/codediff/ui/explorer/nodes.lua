@@ -95,7 +95,7 @@ function M.create_file_nodes(files, git_root, group)
     local status_info = STATUS_SYMBOLS[file.status] or { symbol = file.status, color = "Normal" }
 
     nodes[#nodes + 1] = Tree.Node({
-      text = file.path,
+      text = file.display_path or file.path,
       data = {
         path = file.path,
         status = file.status,
@@ -106,46 +106,8 @@ function M.create_file_nodes(files, git_root, group)
         status_color = status_info.color,
         git_root = git_root,
         group = group,
-      },
-    })
-  end
-  return nodes
-end
-
--- Create the API layout's module entries, one per module whose API changed.
--- modules are { label, files, group }, as api.sort_changes returns them with
--- their explorer group added. An entry selects the module's first changed
--- file, whose API view shows the whole module.
-function M.create_api_nodes(modules, git_root)
-  local nodes = {}
-  for _, module in ipairs(modules) do
-    local file = module.files[1]
-    local status = file.status
-    local paths = {}
-    for _, f in ipairs(module.files) do
-      paths[#paths + 1] = f.path
-      if f.status ~= status then
-        status = "M"
-      end
-    end
-    local label = module.group == "staged" and module.label .. " (staged)" or module.label
-    local icon, icon_color = M.get_file_icon(file.path)
-    local status_info = STATUS_SYMBOLS[status] or { symbol = status, color = "Normal" }
-
-    nodes[#nodes + 1] = Tree.Node({
-      text = label,
-      data = {
-        path = file.path,
-        status = file.status,
-        old_path = file.old_path,
-        icon = icon,
-        icon_color = icon_color,
-        status_symbol = status_info.symbol,
-        status_color = status_info.color,
-        git_root = git_root,
-        group = module.group,
-        api_label = label,
-        api_files = paths,
+        api_label = file.display_path,
+        api_files = file.api_files,
       },
     })
   end
@@ -178,7 +140,8 @@ function M.create_tree_file_nodes(files, git_root, group)
 
   for _, file in ipairs(files) do
     local parts = {}
-    for part in file.path:gmatch("[^/]+") do
+    -- A module entry of the API layout sits in its directory by its name.
+    for part in (file.display_path or file.path):gmatch("[^/]+") do
       parts[#parts + 1] = part
     end
 
@@ -234,12 +197,17 @@ function M.create_tree_file_nodes(files, git_root, group)
     for key in pairs(subtree) do
       sorted_keys[#sorted_keys + 1] = key
     end
-    -- Sort: directories first, then files, alphabetically
+    -- Sort: directories first, then module entries, then files, alphabetically
+    local function rank(item)
+      if item._is_dir then
+        return 0
+      end
+      return item._file.api_files and 1 or 2
+    end
     table.sort(sorted_keys, function(a, b)
-      local a_is_dir = subtree[a]._is_dir
-      local b_is_dir = subtree[b]._is_dir
-      if a_is_dir ~= b_is_dir then
-        return a_is_dir
+      local a_rank, b_rank = rank(subtree[a]), rank(subtree[b])
+      if a_rank ~= b_rank then
+        return a_rank < b_rank
       end
       return a < b
     end)
@@ -289,6 +257,8 @@ function M.create_tree_file_nodes(files, git_root, group)
             git_root = git_root,
             group = group,
             indent_state = node_indent_state,
+            api_label = file.display_path,
+            api_files = file.api_files,
           },
         })
       end
@@ -389,9 +359,8 @@ function M.prepare_node(node, max_width, selected_path, selected_group)
       return combined_name
     end
 
-    -- Check if we're in tree mode (directory is already shown in hierarchy).
-    -- A module entry of the API layout always shows its whole label.
-    local view_mode = data.api_label and "list" or explorer_config.view_mode or "list"
+    -- Check if we're in tree mode (directory is already shown in hierarchy)
+    local view_mode = explorer_config.view_mode or "list"
 
     -- File entry - VSCode style: filename (bold) + directory (dimmed) + status (right-aligned)
     local indent
@@ -416,7 +385,7 @@ function M.prepare_node(node, max_width, selected_path, selected_group)
 
     -- Split path into filename and directory
     local full_path = data.api_label or data.path or node.text
-    local filename = full_path:match("([^/]+/?)$") or full_path
+    local filename = full_path:match("([^/]+)$") or full_path
     -- In tree mode, don't show directory (it's in the hierarchy)
     local directory = (view_mode == "tree") and "" or full_path:sub(1, -(#filename + 1))
 
@@ -457,7 +426,8 @@ function M.prepare_node(node, max_width, selected_path, selected_group)
     end
 
     -- Append filename (normal weight) and directory (dimmed)
-    line:append(filename, get_hl("Normal"))
+    -- A module entry of the API layout is dimmed, like a label.
+    line:append(filename, get_hl(data.api_label and "ExplorerDirectorySmall" or "Normal"))
     if #directory > 0 then
       line:append(" ", get_hl("Normal"))
       line:append(directory, get_hl("ExplorerDirectorySmall"))

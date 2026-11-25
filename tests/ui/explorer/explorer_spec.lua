@@ -542,7 +542,7 @@ describe("Explorer API layout", function()
     vim.fn.delete(root, "rf")
   end)
 
-  it("lists API modules and tests while the API view is on, and only steps through them", function()
+  it("shows a changed module as one entry beside its tests, and steps through the whole change", function()
     vim.cmd("edit " .. root .. "/README.md")
     vim.cmd("CodeDiff")
     local lifecycle = require("codediff.ui.lifecycle")
@@ -554,28 +554,62 @@ describe("Explorer API layout", function()
     end))
     local explorer = lifecycle.get_explorer(tabpage)
     local skeleton = require("codediff.ui.view.skeleton")
+    local refresh = require("codediff.ui.explorer.refresh")
     assert.equals("README.md", explorer.current_file_path)
+
+    local function entries()
+      return vim.tbl_map(function(file)
+        return file.data.api_label or file.data.path
+      end, refresh.get_all_files(explorer.tree))
+    end
 
     skeleton.want(tabpage, "api")
     assert.is_true(vim.wait(5000, function()
-      return skeleton.api_shown(lifecycle.get_session(tabpage))
+      return explorer.api_layout == true
     end))
     local text = tree_text(explorer)
-    assert.truthy(text:find("API (1)", 1, true))
-    assert.truthy(text:find("shop/", 1, true))
-    assert.truthy(text:find("Tests (1)", 1, true))
-    assert.truthy(text:find("Changes (2)", 1, true))
-    -- The selection moves off README.md, which has no API view, to the first module.
+    assert.truthy(text:find("Changes (4)", 1, true))
+    assert.truthy(text:find("package shop", 1, true))
+    assert.is_nil(text:find("API (", 1, true))
+    -- cart's API did not change, so cart.go keeps its own entry. shop's two
+    -- changed files give way to the module entry, before the test beside it.
+    assert.are.same({ "README.md", "cart/cart.go", "shop/package shop", "shop/shop_test.go" }, entries())
+    -- README.md has no API view and stays selected.
+    assert.equals("README.md", explorer.current_file_path)
+
+    -- Next file steps through every entry, the module entry included.
+    local actions = require("codediff.ui.explorer.actions")
+    actions.navigate_next(explorer)
+    assert.equals("cart/cart.go", explorer.current_file_path)
+    actions.navigate_next(explorer)
     assert.equals("shop/shop.go", explorer.current_file_path)
-    local navigable = vim.tbl_map(function(file)
-      return file.data.path
-    end, require("codediff.ui.explorer.refresh").get_all_files(explorer.tree))
-    assert.are.same({ "shop/shop.go", "shop/shop_test.go" }, navigable)
+    actions.navigate_next(explorer)
+    assert.equals("shop/shop_test.go", explorer.current_file_path)
 
     skeleton.toggle_api(tabpage)
     text = tree_text(explorer)
-    assert.is_nil(text:find("API (", 1, true))
+    assert.is_nil(text:find("package shop", 1, true))
     assert.truthy(text:find("Changes (5)", 1, true))
-    assert.equals("shop/shop.go", explorer.current_file_path)
+    assert.equals("shop/shop_test.go", explorer.current_file_path)
+  end)
+
+  it("selects the module entry of the current file when the API view turns on", function()
+    vim.cmd("edit " .. root .. "/shop/util.go")
+    vim.cmd("CodeDiff")
+    local lifecycle = require("codediff.ui.lifecycle")
+    local tabpage
+    assert.is_true(vim.wait(5000, function()
+      tabpage = vim.api.nvim_get_current_tabpage()
+      local explorer = lifecycle.get_explorer(tabpage)
+      return explorer ~= nil and explorer.current_file_path ~= nil and lifecycle.get_session(tabpage).stored_diff_result ~= nil
+    end))
+    local explorer = lifecycle.get_explorer(tabpage)
+    require("codediff.ui.view.skeleton").want(tabpage, "api")
+    assert.is_true(vim.wait(5000, function()
+      return explorer.api_layout == true and explorer.current_file_path == "shop/shop.go"
+    end))
+    local actions = require("codediff.ui.explorer.actions")
+    actions.navigate_next(explorer)
+    assert.equals("shop/shop_test.go", explorer.current_file_path)
   end)
 end)

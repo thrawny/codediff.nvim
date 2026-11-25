@@ -72,50 +72,72 @@ local function module_revisions(group, base_revision, target_revision)
   end
 end
 
--- The API layout: an API group with one entry per module whose API changed,
--- a Tests group, then the usual groups with every other file. Next and
--- previous file move through the API and Tests groups only, unless both are
--- empty. Generated and conflict groups keep their files.
-local function api_layout(sections, git_root, base_revision, target_revision, create_nodes)
+-- One explorer entry for a directory module whose API changed, placed in its
+-- directory and named like "package shop". Selecting it opens the module's
+-- first changed file, whose API view shows the whole module.
+local function module_entry(module)
+  local first = module.files[1]
+  local status = first.status
+  local paths = {}
+  for _, f in ipairs(module.files) do
+    paths[#paths + 1] = f.path
+    if f.status ~= status then
+      status = "M"
+    end
+  end
+  local dir = module.label:gsub("/$", "")
+  return {
+    path = first.path,
+    old_path = first.old_path,
+    status = status,
+    display_path = (dir == "." or dir == "") and module.name or dir .. "/" .. module.name,
+    api_files = paths,
+  }
+end
+
+-- Sort entries the way the tree shows them: by directory, then a module
+-- before the files beside it, then by name.
+local function sort_entries(entries)
+  local function key(entry)
+    local path = entry.display_path or entry.path
+    return path:match("^(.*)/") or "", entry.api_files and 0 or 1, path:match("([^/]+)$")
+  end
+  table.sort(entries, function(a, b)
+    local a_dir, a_rank, a_name = key(a)
+    local b_dir, b_rank, b_name = key(b)
+    if a_dir ~= b_dir then
+      return a_dir < b_dir
+    end
+    if a_rank ~= b_rank then
+      return a_rank < b_rank
+    end
+    return a_name < b_name
+  end)
+  return entries
+end
+
+-- The API layout: the usual groups, where the changed files of each
+-- directory module whose API changed give way to one module entry in their
+-- directory. Tests and every other file stay as they are, so next and
+-- previous file still step through the whole change.
+local function api_layout(sections, git_root, base_revision, target_revision)
   local api = require("codediff.api")
-  local modules, test_nodes, test_count = {}, {}, 0
   for _, section in ipairs(sections) do
     if not section.default_collapsed and section.name ~= "conflicts" then
-      local section_modules, tests, rest = api.sort_changes(git_root, section.files, module_revisions(section.name, base_revision, target_revision))
-      for _, module in ipairs(section_modules) do
-        module.group = section.name
-        modules[#modules + 1] = module
+      local modules, tests, rest = api.sort_changes(git_root, section.files, module_revisions(section.name, base_revision, target_revision))
+      local entries = {}
+      for _, module in ipairs(modules) do
+        if module.name then
+          entries[#entries + 1] = module_entry(module)
+        else
+          vim.list_extend(entries, module.files)
+        end
       end
-      if #tests > 0 then
-        vim.list_extend(test_nodes, create_nodes(tests, git_root, section.name))
-        test_count = test_count + #tests
-      end
-      section.files = rest
+      vim.list_extend(entries, tests)
+      vim.list_extend(entries, rest)
+      section.files = sort_entries(entries)
     end
   end
-
-  local tree_nodes = {}
-  local navigable = #modules > 0 or #test_nodes > 0
-  if #modules > 0 then
-    tree_nodes[#tree_nodes + 1] = Tree.Node({
-      text = string.format("API (%d)", #modules),
-      data = { type = "group", name = "api", collapse_key = "api:API" },
-    }, nodes.create_api_nodes(modules, git_root))
-  end
-  if #test_nodes > 0 then
-    tree_nodes[#tree_nodes + 1] = Tree.Node({
-      text = string.format("Tests (%d)", test_count),
-      data = { type = "group", name = "tests", collapse_key = "tests:Tests" },
-    }, test_nodes)
-  end
-  for _, section in ipairs(sections) do
-    if #section.files > 0 then
-      local group = make_group(section.name, section.label, section.files, create_nodes, git_root, section.default_collapsed)
-      group.data.navigable = not navigable
-      tree_nodes[#tree_nodes + 1] = group
-    end
-  end
-  return tree_nodes
 end
 
 -- Create tree data structure from git status result. opts.api_layout builds
@@ -141,7 +163,7 @@ function M.create_tree_data(status_result, git_root, base_revision, is_dir_mode,
   local create_nodes = (view_mode == "tree") and nodes.create_tree_file_nodes or nodes.create_file_nodes
 
   -- The file groups in display order. A section without default_collapsed
-  -- shows even when empty, except in the API layout.
+  -- shows even when empty.
   local sections = {}
   local function add(name, label, files, default_collapsed)
     if not default_collapsed or #files > 0 then
@@ -177,7 +199,7 @@ function M.create_tree_data(status_result, git_root, base_revision, is_dir_mode,
     tree_nodes[#tree_nodes + 1] = make_context_group(context_entries)
   end
   if opts.api_layout and git_root and not is_dir_mode then
-    return vim.list_extend(tree_nodes, api_layout(sections, git_root, base_revision, opts.target_revision, create_nodes))
+    api_layout(sections, git_root, base_revision, opts.target_revision)
   end
   for _, section in ipairs(sections) do
     tree_nodes[#tree_nodes + 1] = make_group(section.name, section.label, section.files, create_nodes, git_root, section.default_collapsed)

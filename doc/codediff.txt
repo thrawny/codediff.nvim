@@ -197,22 +197,20 @@ It stays on when you switch files. A file without an API view, such as a
 file in a language without one, shows its normal diff, and the winbar shows
 "Diff (API on)". The next file that has an API view shows it again.
 
-While the API state is on, the explorer lists the changes by API:
+While the API state is on, the explorer keeps its usual groups, with one
+change: the changed files of a directory module whose API changed give way to
+one module entry in that directory, such as "package shop". It sits before
+the files beside it, so the module's tests follow it. Selecting the entry
+shows the module's API diff. A module of one file keeps its own entry. Test
+files and the files of modules whose API did not change keep their entries
+and show their normal diffs.
 
-  API             One entry per module whose API changed, named by its
-                  directory, or by its path for a module of one file.
-                  Selecting an entry shows the module's API diff.
-  Tests           The changed test files. Each shows its normal diff.
-                  Test files are `_test.go` files, pytest's `test_*.py`,
-                  `*_test.py` and `conftest.py`, TypeScript's `*.test.ts`
-                  and `*.spec.ts`, and any Python or TypeScript file under
-                  a `test`, `tests` or `__tests__` directory.
-  Changes         The usual groups, with every other file, including the
-                  files of modules whose API did not change.
+Test files are `_test.go` files, pytest's `test_*.py`, `*_test.py` and
+`conftest.py`, TypeScript's `*.test.ts` and `*.spec.ts`, and any Python or
+TypeScript file under a `test`, `tests` or `__tests__` directory.
 
-Next and previous file move through the API and Tests entries only, unless
-both groups are empty. Turning the API state on selects the entry for the
-current file's module, or the first entry if the current file has none.
+Next and previous file step through every entry. Turning the API state on
+selects the entry for the current file's module.
 
 The skeleton view works in both layouts and stays on when you switch files.
 The winbar always shows the current mode: Diff, API or File. Enabling

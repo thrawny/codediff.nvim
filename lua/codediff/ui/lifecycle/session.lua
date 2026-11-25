@@ -69,8 +69,9 @@ local function build_winbar(sess, win)
     if ok then
       local all_files = refresh.get_all_files(sess.explorer.tree)
       local current = sess.explorer.current_file_path
+      local index = current and refresh.file_index(all_files, current)
       for i, file in ipairs(all_files) do
-        if file.data and file.data.path == current then
+        if i == index then
           local file_part = string.format("󰈔 %d/%d  %s", i, #all_files, current)
           local status = winbar_config.show_file_status ~= false and FILE_STATUS[file.data.status] or nil
           if status then

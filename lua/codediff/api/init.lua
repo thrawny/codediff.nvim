@@ -484,14 +484,28 @@ function M.is_test(path)
   return language ~= nil and language.is_test(path)
 end
 
+-- The name a whole-directory module goes by in the explorer, such as
+-- "package shop": Go's package clause, or the directory's name.
+local function module_name(git_root, dir, first_line)
+  if type(first_line) == "table" then
+    first_line = first_line.text
+  end
+  local clause = type(first_line) == "string" and first_line:match("^package [%w_]+")
+  if clause then
+    return clause
+  end
+  return "package " .. vim.fn.fnamemodify(dir == "." and git_root or dir, ":t")
+end
+
 -- Sort changed files for the explorer's API layout. files are explorer
 -- entries { path, old_path, status }, with paths relative to git_root.
 -- revisions(file) returns the revisions to read the file's module at, old
 -- side then new side, as module_sources takes them. Returns:
 --   modules  one entry per module whose API differs between the revisions,
---            as { label, files }, where files are its changed files in the
---            order given. label is the module's directory with a trailing
---            slash, or the file's path for a module of one file.
+--            as { label, name, files }, where files are its changed files
+--            in the order given. label is the module's directory with a
+--            trailing slash, or the file's path for a module of one file.
+--            name, such as "package shop", is set for a directory module.
 --   tests    the test files of languages with an API view.
 --   rest     every other file, including the files of modules whose API is
 --            the same on both sides.
@@ -579,6 +593,7 @@ function M.sort_changes(git_root, files, revisions)
         local old_lines, new_lines = lines_of(old_sources), lines_of(new_sources)
         module = {
           label = whole_dir and (dir == "." and "./" or dir .. "/") or file.path,
+          name = whole_dir and module_name(git_root, dir, new_lines[1] or old_lines[1]) or nil,
           files = {},
           changed = not vim.deep_equal(old_lines, new_lines),
         }
@@ -593,7 +608,7 @@ function M.sort_changes(git_root, files, revisions)
   local modules, rest = {}, {}
   for _, module in ipairs(order) do
     if module.changed then
-      modules[#modules + 1] = { label = module.label, files = module.files }
+      modules[#modules + 1] = { label = module.label, name = module.name, files = module.files }
     end
   end
   for _, file in ipairs(files) do
