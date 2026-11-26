@@ -198,12 +198,12 @@ file in a language without one, shows its normal diff, and the winbar shows
 "Diff (API on)". The next file that has an API view shows it again.
 
 While the API state is on, the explorer keeps its usual groups, with one
-change: the changed files of a directory module whose API changed give way to
-one module entry in that directory, such as "package shop". It sits before
-the files beside it, so the module's tests follow it. Selecting the entry
-shows the module's API diff. A module of one file keeps its own entry. Test
-files and the files of modules whose API did not change keep their entries
-and show their normal diffs.
+change: the changed files of a directory module give way to one module
+entry in that directory, such as "package shop". It sits before the files
+beside it, so the module's tests follow it. Selecting the entry shows the
+module's API diff. A module whose API did not change has no status letter.
+A module of one file keeps its own entry. Test files keep their entries and
+show their normal diffs.
 
 Test files are `_test.go` files, pytest's `test_*.py`, `*_test.py` and
 `conftest.py`, TypeScript's `*.test.ts` and `*.spec.ts`, and any Python or

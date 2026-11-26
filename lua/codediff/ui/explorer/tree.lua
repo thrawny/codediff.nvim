@@ -72,9 +72,10 @@ local function module_revisions(group, base_revision, target_revision)
   end
 end
 
--- One explorer entry for a directory module whose API changed, placed in its
--- directory and named like "package shop". Selecting it opens the module's
--- first changed file, whose API view shows the whole module.
+-- One explorer entry for a directory module, placed in its directory and
+-- named like "package shop". Selecting it opens the module's first changed
+-- file, whose API view shows the whole module. A module whose API did not
+-- change shows no status letter.
 local function module_entry(module)
   local first = module.files[1]
   local status = first.status
@@ -92,6 +93,7 @@ local function module_entry(module)
     status = status,
     display_path = (dir == "." or dir == "") and module.name or dir .. "/" .. module.name,
     api_files = paths,
+    api_unchanged = not module.changed,
   }
 end
 
@@ -117,9 +119,9 @@ local function sort_entries(entries)
 end
 
 -- The API layout: the usual groups, where the changed files of each
--- directory module whose API changed give way to one module entry in their
--- directory. Tests and every other file stay as they are, so next and
--- previous file still step through the whole change.
+-- directory module give way to one module entry in their directory. Tests
+-- and every other file stay as they are, so next and previous file still
+-- step through the whole change.
 local function api_layout(sections, git_root, base_revision, target_revision)
   local api = require("codediff.api")
   for _, section in ipairs(sections) do

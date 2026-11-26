@@ -345,17 +345,24 @@ describe("API layout sorting", function()
     local modules, tests, rest = api.sort_changes(root, files, function()
       return "HEAD", nil
     end)
-    assert.equals(1, #modules)
-    assert.equals("shop/", modules[1].label)
+    assert.are.same(
+      { "cart/", "shop/" },
+      vim.tbl_map(function(m)
+        return m.label
+      end, modules)
+    )
+    assert.equals("package cart", modules[1].name)
+    -- cart changed only inside a function body.
+    assert.is_false(modules[1].changed)
+    assert.is_true(modules[2].changed)
     assert.are.same(
       { "shop/shop.go", "shop/util.go" },
       vim.tbl_map(function(f)
         return f.path
-      end, modules[1].files)
+      end, modules[2].files)
     )
     assert.are.same({ files[4] }, tests)
-    -- cart changed only inside a function body.
-    assert.are.same({ files[1], files[2] }, rest)
+    assert.are.same({ files[1] }, rest)
     vim.fn.delete(root, "rf")
   end)
 
@@ -370,6 +377,7 @@ describe("API layout sorting", function()
       return ":0", nil
     end)
     assert.equals(1, #modules)
+    assert.is_true(modules[1].changed)
     vim.fn.delete(root, "rf")
   end)
 

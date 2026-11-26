@@ -501,14 +501,14 @@ end
 -- entries { path, old_path, status }, with paths relative to git_root.
 -- revisions(file) returns the revisions to read the file's module at, old
 -- side then new side, as module_sources takes them. Returns:
---   modules  one entry per module whose API differs between the revisions,
---            as { label, name, files }, where files are its changed files
---            in the order given. label is the module's directory with a
---            trailing slash, or the file's path for a module of one file.
+--   modules  one entry per module with a changed file, as
+--            { label, name, files, changed }, where files are its changed
+--            files in the order given. label is the module's directory with
+--            a trailing slash, or the file's path for a module of one file.
 --            name, such as "package shop", is set for a directory module.
+--            changed says whether its API differs between the revisions.
 --   tests    the test files of languages with an API view.
---   rest     every other file, including the files of modules whose API is
---            the same on both sides.
+--   rest     every other file: files in no language with an API view.
 function M.sort_changes(git_root, files, revisions)
   local opts = { comments = M.comments_shown(), private = M.private_shown() }
 
@@ -607,13 +607,10 @@ function M.sort_changes(git_root, files, revisions)
 
   local modules, rest = {}, {}
   for _, module in ipairs(order) do
-    if module.changed then
-      modules[#modules + 1] = { label = module.label, name = module.name, files = module.files }
-    end
+    modules[#modules + 1] = { label = module.label, name = module.name, files = module.files, changed = module.changed }
   end
   for _, file in ipairs(files) do
-    local module = module_of_file[file]
-    if not test_set[file] and not (module and module.changed) then
+    if not test_set[file] and not module_of_file[file] then
       rest[#rest + 1] = file
     end
   end

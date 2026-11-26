@@ -571,9 +571,14 @@ describe("Explorer API layout", function()
     assert.truthy(text:find("Changes (4)", 1, true))
     assert.truthy(text:find("package shop", 1, true))
     assert.is_nil(text:find("API (", 1, true))
-    -- cart's API did not change, so cart.go keeps its own entry. shop's two
-    -- changed files give way to the module entry, before the test beside it.
-    assert.are.same({ "README.md", "cart/cart.go", "shop/package shop", "shop/shop_test.go" }, entries())
+    -- Each package's changed files give way to its module entry, before the
+    -- test beside it. cart's API did not change, so it has no status letter.
+    assert.are.same({ "README.md", "cart/package cart", "shop/package shop", "shop/shop_test.go" }, entries())
+    for _, file in ipairs(refresh.get_all_files(explorer.tree)) do
+      if file.data.api_label == "cart/package cart" then
+        assert.equals("", file.data.status_symbol)
+      end
+    end
     -- README.md has no API view and stays selected.
     assert.equals("README.md", explorer.current_file_path)
 

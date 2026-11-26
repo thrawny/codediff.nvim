@@ -110,6 +110,9 @@ function M.create_file_nodes(files, git_root, group)
         api_files = file.api_files,
       },
     })
+    if file.api_unchanged then
+      nodes[#nodes].data.status_symbol = ""
+    end
   end
   return nodes
 end
@@ -261,6 +264,9 @@ function M.create_tree_file_nodes(files, git_root, group)
             api_files = file.api_files,
           },
         })
+        if file.api_unchanged then
+          nodes[#nodes].data.status_symbol = ""
+        end
       end
     end
 
